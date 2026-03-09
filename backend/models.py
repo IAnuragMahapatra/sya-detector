@@ -60,9 +60,25 @@ def _call_ollama(prompt: str) -> str:
     response = httpx.post(OLLAMA_CHAT_URL, json=payload, timeout=120.0)
     response.raise_for_status()
     data = response.json()
-    # /api/chat returns {"message": {"role": "assistant", "content": "..."}}
-    raw = data["message"]["content"]
-    print(f"[ollama] raw response ({len(raw)} chars): {raw[:300]}")
+    # Log the full structure so we can diagnose unexpected response shapes
+    print(f"[ollama] response keys: {list(data.keys())}")
+    print(f"[ollama] raw data: {str(data)[:600]}")
+    # Try to extract the content from whatever shape Ollama returns
+    # Chat format:     data["message"]["content"]
+    # Generate format: data["response"]
+    # Fallback:        first non-empty string value in the top-level dict
+    raw = ""
+    if isinstance(data.get("message"), dict):
+        raw = data["message"].get("content", "")
+    if not raw:
+        raw = data.get("response", "")
+    if not raw:
+        for v in data.values():
+            if isinstance(v, str) and v.strip():
+                raw = v
+                break
+
+    print(f"[ollama] extracted content ({len(raw)} chars): {raw[:300]}")
     return raw
 
 
