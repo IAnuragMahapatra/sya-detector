@@ -64,8 +64,11 @@ def _call_ollama(prompt: str) -> str:
     print(f"[ollama] response keys: {list(data.keys())}")
     print(f"[ollama] raw data: {str(data)[:600]}")
     # Try to extract the content from whatever shape Ollama returns.
-    # DeepSeek V3 (reasoning model) puts JSON-only answers in message["thinking"]
-    # and leaves message["content"] empty. Priority order:
+    # TODO (QWEN): deepseek-v3.2:cloud is a reasoning model, so it puts JSON-only
+    # answers in message["thinking"] and leaves message["content"] empty.
+    # When switching back to qwen2.5:7b, the standard format is message["content"]
+    # or sometimes data["response"] depending on if you use /api/chat.
+    # Priority order below handles both safely:
     #   1. message["content"]   — standard chat response
     #   2. message["thinking"]  — DeepSeek / reasoning models
     #   3. data["response"]     — generate endpoint fallback
