@@ -3,12 +3,11 @@ FastAPI app — route definitions only.
 All business logic lives in pipeline.py and cleaner.py.
 """
 
+from cleaner import strip_sypr
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
 from pipeline import analyze_conversation
-from cleaner import strip_sypr
+from pydantic import BaseModel
 
 app = FastAPI(title="SYA Detector", version="1.0.0")
 
@@ -25,7 +24,7 @@ app.add_middleware(
 
 
 class ConversationMessage(BaseModel):
-    role: str   # "user" | "assistant"
+    role: str  # "user" | "assistant"
     content: str
 
 
