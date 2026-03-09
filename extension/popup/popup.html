@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SYA Detector</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 260px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f11;
+      color: #e8e8e8;
+      padding: 20px 18px;
+    }
+
+    .header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1a1a1e;
+      border: 1px solid #2a2a30;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .toggle-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #ccc;
+    }
+
+    .status-text {
+      font-size: 11px;
+      color: #555;
+      margin-top: 2px;
+    }
+
+    /* Toggle switch */
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #333;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background 0.25s;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.25s;
+    }
+
+    input:checked + .slider {
+      background: #e53e3e;
+    }
+
+    input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    .footer {
+      margin-top: 16px;
+      font-size: 10px;
+      color: #3a3a45;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">⚠ SYA Detector</div>
+    <div class="subtitle">Sycophantic Agreement Detection</div>
+  </div>
+
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-label">Detection</div>
+      <div class="status-text" id="status-text">Loading…</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="toggle" />
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="footer">chatgpt.com · localhost:8000</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
