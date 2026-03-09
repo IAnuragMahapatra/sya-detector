@@ -175,6 +175,12 @@ MIT — see [LICENSE](./LICENSE) for details.
 
 ---
 
+## Acknowledgments
+
+Built alongside **Antigravity** (Google DeepMind), with contributions down the line from **Claude Opus 4.6** and **Gemini 3.1 Pro**.
+
+---
+
 ## Contact
 
 Built by **Anurag Mahapatra** — reach out at anurag2005om@gmail.com
