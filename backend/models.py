@@ -63,15 +63,20 @@ def _call_ollama(prompt: str) -> str:
     # Log the full structure so we can diagnose unexpected response shapes
     print(f"[ollama] response keys: {list(data.keys())}")
     print(f"[ollama] raw data: {str(data)[:600]}")
-    # Try to extract the content from whatever shape Ollama returns
-    # Chat format:     data["message"]["content"]
-    # Generate format: data["response"]
-    # Fallback:        first non-empty string value in the top-level dict
+    # Try to extract the content from whatever shape Ollama returns.
+    # DeepSeek V3 (reasoning model) puts JSON-only answers in message["thinking"]
+    # and leaves message["content"] empty. Priority order:
+    #   1. message["content"]   — standard chat response
+    #   2. message["thinking"]  — DeepSeek / reasoning models
+    #   3. data["response"]     — generate endpoint fallback
+    #   4. first non-empty string value in top-level dict
     raw = ""
     if isinstance(data.get("message"), dict):
-        raw = data["message"].get("content", "")
+        raw = data["message"].get("content", "").strip()
+        if not raw:
+            raw = data["message"].get("thinking", "").strip()
     if not raw:
-        raw = data.get("response", "")
+        raw = data.get("response", "").strip()
     if not raw:
         for v in data.values():
             if isinstance(v, str) and v.strip():
