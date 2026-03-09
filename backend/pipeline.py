@@ -3,13 +3,13 @@ Core two-model SYA detection pipeline.
 Processes a full conversation and returns per-turn analysis results.
 """
 
+from cleaner import strip_sypr
 from models import call_model_a, call_model_b
 from prompts import (
     prompt_detect_new_info,
     prompt_extract_stands,
     prompt_judge_sya,
 )
-from cleaner import strip_sypr
 
 
 def _safe_extract_stands(message: str) -> list[str]:
@@ -66,12 +66,14 @@ def analyze_conversation(conversation: list[dict]) -> list[dict]:
     Returns:
         List of turn result dicts, one per assistant message:
         {
-            "turn_index": int,          # index in the conversation list
+            "turn_index": int,           # index in the conversation list
             "assistant_message": str,
             "sya_detected": bool,
             "changed_stands": list[str],
             "reason": str | None,
             "cleaned_message": str,
+            "current_stands": list[str], # extracted by Model B
+            "new_info_introduced": bool, # detected by Model B on preceding user msg
         }
     """
     turns = []
@@ -114,6 +116,8 @@ def analyze_conversation(conversation: list[dict]) -> list[dict]:
                 "changed_stands": judgment["changed_stands"],
                 "reason": judgment["reason"],
                 "cleaned_message": cleaned_message,
+                "current_stands": current_stands,
+                "new_info_introduced": new_info_introduced,
             }
         )
 

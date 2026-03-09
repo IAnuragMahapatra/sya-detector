@@ -39,6 +39,8 @@ class TurnResult(BaseModel):
     changed_stands: list[str]
     reason: str | None
     cleaned_message: str
+    current_stands: list[str]
+    new_info_introduced: bool
 
 
 class AnalyzeResponse(BaseModel):
