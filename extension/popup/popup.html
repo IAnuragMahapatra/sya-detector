@@ -46,6 +46,7 @@
       border: 1px solid #2a2a30;
       border-radius: 10px;
       padding: 12px 14px;
+      margin-bottom: 8px;
     }
 
     .toggle-label {
@@ -99,15 +100,25 @@
       background: #e53e3e;
     }
 
+    input:checked + .slider.dev {
+      background: #7c3aed;
+    }
+
     input:checked + .slider::before {
       transform: translateX(18px);
     }
 
     .footer {
-      margin-top: 16px;
+      margin-top: 12px;
       font-size: 10px;
       color: #3a3a45;
       text-align: center;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2a2a30;
+      margin: 4px 0 8px;
     }
   </style>
 </head>
@@ -125,6 +136,19 @@
     <label class="switch">
       <input type="checkbox" id="toggle" />
       <span class="slider"></span>
+    </label>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-label">🛠 Developer Mode</div>
+      <div class="status-text" id="devmode-status-text">Shows LLM reasoning per turn</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="devmode-toggle" />
+      <span class="slider dev"></span>
     </label>
   </div>
 
