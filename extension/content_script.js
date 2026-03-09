@@ -176,9 +176,20 @@ function injectStyles() {
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
 function extractTextContent(el) {
-    const clone = el.cloneNode(true);
+    // ChatGPT renders message prose inside a div with class "markdown" / "prose".
+    // Targeting it avoids grabbing button labels, copy icons, timestamps, etc.
+    const proseEl =
+        el.querySelector(".markdown.prose") ||
+        el.querySelector('[class*="markdown"]') ||
+        el.querySelector('[class*="prose"]') ||
+        el; // fallback: full container
+
+    const clone = proseEl.cloneNode(true);
+    // Remove code blocks so they don't pollute stand extraction
     clone.querySelectorAll("pre, code").forEach((c) => c.remove());
-    return clone.textContent.trim();
+    const text = clone.textContent.trim();
+    console.debug("[SYA] extracted text preview:", text.slice(0, 120));
+    return text;
 }
 
 function buildConversation() {
