@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "SYA Detector",
+  "version": "1.0.0",
+  "description": "Detects sycophantic agreement in ChatGPT and strips hollow openers.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "SYA Detector"
+  }
+}
