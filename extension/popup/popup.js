@@ -73,19 +73,19 @@ const groupUrl = document.getElementById("group-url");
 const PROVIDER_DEFAULTS = {
     anthropic: {
         type: "anthropic",
-        base_url: "https://api.anthropic.com",
+        base_url: "https://api.anthropic.com/",
         api_key: "",
         model: "claude-3-5-sonnet-20241022",
     },
     openai: {
         type: "openai",
-        base_url: "https://api.openai.com/v1",
+        base_url: "https://api.openai.com/v1/",
         api_key: "",
         model: "gpt-4o",
     },
     ollama: {
         type: "openai", // Ollama uses OpenAI sdk compatibility
-        base_url: "http://localhost:11434/v1",
+        base_url: "http://localhost:11434/v1/",
         api_key: "ollama",
         model: "llama3",
     },
