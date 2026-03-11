@@ -11,13 +11,23 @@ from pydantic import BaseModel
 
 app = FastAPI(title="SYA Detector", version="1.0.0")
 
-# Allow all origins — local PoC only
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+# ── Provider config model ──────────────────────────────────────────────────────
+
+
+class ProviderConfig(BaseModel):
+    type: str  # "anthropic" | "openai"
+    base_url: str
+    api_key: str
+    model: str
+    anthropic_version: str = "2023-06-01"  # only used when type is "anthropic"
 
 
 # ── Request / Response models ──────────────────────────────────────────────────
@@ -29,6 +39,7 @@ class ConversationMessage(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
+    provider: ProviderConfig
     conversation: list[ConversationMessage]
 
 
@@ -68,9 +79,10 @@ def analyze(request: AnalyzeRequest):
         raise HTTPException(status_code=400, detail="conversation must not be empty")
 
     conversation_dicts = [m.model_dump() for m in request.conversation]
+    provider_dict = request.provider.model_dump()
 
     try:
-        turns = analyze_conversation(conversation_dicts)
+        turns = analyze_conversation(conversation_dicts, provider_dict)
     except Exception as e:
         print(f"[main] /analyze error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
