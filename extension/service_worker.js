@@ -25,7 +25,7 @@ async function analyzeConversation(conversation) {
   const storage = await chrome.storage.local.get(["sya_provider"]);
   const providerConfig = storage.sya_provider || {
     type: "anthropic",
-    base_url: "https://api.anthropic.com/v1/messages",
+    base_url: "https://api.anthropic.com",
     api_key: "",
     model: "claude-3-5-sonnet-20241022",
   };
