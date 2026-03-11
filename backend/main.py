@@ -24,8 +24,8 @@ app.add_middleware(
 
 class ProviderConfig(BaseModel):
     type: str  # "anthropic" | "openai"
-    base_url: str
-    api_key: str
+    base_url: str | None = None
+    api_key: str | None = None
     model: str
     anthropic_version: str = "2023-06-01"  # only used when type is "anthropic"
 

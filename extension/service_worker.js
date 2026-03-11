@@ -30,12 +30,15 @@ async function analyzeConversation(conversation) {
     model: "claude-3-5-sonnet-20241022",
   };
 
+  // Strip the 'id' field which isn't part of the backend ProviderConfig model
+  const { id, ...cleanProviderConfig } = providerConfig;
+
   const response = await fetch(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       conversation,
-      provider: providerConfig
+      provider: cleanProviderConfig
     }),
   });
 
