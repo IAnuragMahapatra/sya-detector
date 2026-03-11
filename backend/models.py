@@ -1,15 +1,13 @@
 """
-Ollama HTTP call wrappers.
-Talks directly to the Ollama REST API — no SDK used.
+Provider-agnostic LLM call layer.
+Dispatches to Anthropic or OpenAI-compatible APIs using official SDKs.
 """
 
 import json
 import re
 
-import httpx
-
-OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
-MODEL_NAME = "deepseek-v3.2:cloud"
+import anthropic
+import openai
 
 
 def _extract_json(text: str) -> dict:
@@ -44,63 +42,84 @@ def _extract_json(text: str) -> dict:
     raise ValueError(f"No valid JSON object found in model response:\n{text[:500]}")
 
 
-def _call_ollama(prompt: str) -> str:
-    """
-    Send a prompt to Ollama via the /api/chat endpoint.
+# ── Provider dispatch ──────────────────────────────────────────────────────────
 
-    Chat-tuned models (e.g. deepseek, qwen-instruct) return an empty
-    `response` field on /api/generate because they expect the messages
-    array format. /api/chat is the correct endpoint for them.
-    """
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": False,
-    }
-    response = httpx.post(OLLAMA_CHAT_URL, json=payload, timeout=120.0)
-    response.raise_for_status()
-    data = response.json()
-    # Log the full structure so we can diagnose unexpected response shapes
-    print(f"[ollama] response keys: {list(data.keys())}")
-    print(f"[ollama] raw data: {str(data)[:600]}")
-    # Try to extract the content from whatever shape Ollama returns.
-    # TODO (QWEN): deepseek-v3.2:cloud is a reasoning model, so it puts JSON-only
-    # answers in message["thinking"] and leaves message["content"] empty.
-    # When switching back to qwen2.5:7b, the standard format is message["content"]
-    # or sometimes data["response"] depending on if you use /api/chat.
-    # Priority order below handles both safely:
-    #   1. message["content"]   — standard chat response
-    #   2. message["thinking"]  — DeepSeek / reasoning models
-    #   3. data["response"]     — generate endpoint fallback
-    #   4. first non-empty string value in top-level dict
-    raw = ""
-    if isinstance(data.get("message"), dict):
-        raw = data["message"].get("content", "").strip()
-        if not raw:
-            raw = data["message"].get("thinking", "").strip()
-    if not raw:
-        raw = data.get("response", "").strip()
-    if not raw:
-        for v in data.values():
-            if isinstance(v, str) and v.strip():
-                raw = v
-                break
 
-    print(f"[ollama] extracted content ({len(raw)} chars): {raw[:300]}")
+def _call_openai_compatible(prompt: str, config: dict) -> str:
+    """
+    Call an OpenAI-compatible API (OpenAI, Ollama, or any compatible endpoint).
+    Uses the official openai SDK with a custom base_url.
+    """
+    client = openai.OpenAI(
+        base_url=config["base_url"],
+        api_key=config.get("api_key", ""),
+    )
+
+    response = client.chat.completions.create(
+        model=config["model"],
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+    )
+
+    return response.choices[0].message.content or ""
+
+
+def _call_anthropic(prompt: str, config: dict) -> str:
+    """
+    Call the Anthropic Messages API using the official anthropic SDK.
+    """
+    client = anthropic.Anthropic(
+        api_key=config.get("api_key", ""),
+    )
+
+    response = client.messages.create(
+        model=config["model"],
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    # Anthropic returns a list of content blocks
+    return "".join(block.text for block in response.content if block.type == "text")
+
+
+def _call_provider(prompt: str, config: dict) -> str:
+    """
+    Dispatch a prompt to the configured provider.
+
+    Args:
+        prompt: The prompt string to send.
+        config: Provider config dict with keys: type, base_url, api_key, model.
+
+    Returns:
+        Raw text response from the model.
+    """
+    provider_type = config.get("type", "openai")
+
+    if provider_type == "anthropic":
+        raw = _call_anthropic(prompt, config)
+    elif provider_type == "openai":
+        raw = _call_openai_compatible(prompt, config)
+    else:
+        raise ValueError(f"Unknown provider type: {provider_type!r}")
+
+    print(f"[provider:{provider_type}] response ({len(raw)} chars): {raw[:300]}")
     return raw
 
 
-def call_model_b(prompt: str) -> dict:
+# ── Public API (used by pipeline.py) ───────────────────────────────────────────
+
+
+def call_model_b(prompt: str, provider_config: dict) -> dict:
     """Call Model B (Extractor). Parses JSON robustly from the response."""
-    raw = _call_ollama(prompt)
+    raw = _call_provider(prompt, provider_config)
     result = _extract_json(raw)
     print(f"[model_b] parsed: {result}")
     return result
 
 
-def call_model_a(prompt: str) -> dict:
+def call_model_a(prompt: str, provider_config: dict) -> dict:
     """Call Model A (Judge). Parses JSON robustly from the response."""
-    raw = _call_ollama(prompt)
+    raw = _call_provider(prompt, provider_config)
     result = _extract_json(raw)
     print(f"[model_a] parsed: {result}")
     return result
