@@ -109,7 +109,7 @@
     }
 
     .footer {
-      margin-top: 12px;
+      margin-top: 16px;
       font-size: 10px;
       color: #3a3a45;
       text-align: center;
@@ -118,7 +118,82 @@
     .divider {
       border: none;
       border-top: 1px solid #2a2a30;
-      margin: 4px 0 8px;
+      margin: 12px 0;
+    }
+
+    /* Settings Form */
+    .settings-section {
+      margin-top: 12px;
+      background: #151518;
+      border: 1px solid #2a2a30;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .settings-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #ccc;
+      margin-bottom: 12px;
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .form-group select,
+    .form-group input {
+      width: 100%;
+      background: #0f0f11;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 6px 8px;
+      color: #fff;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .form-group select:focus,
+    .form-group input:focus {
+      border-color: #555;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .btn-save {
+      width: 100%;
+      background: #2ea043;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.2s;
+    }
+
+    .btn-save:hover {
+      background: #3fb950;
+    }
+
+    .save-status {
+      font-size: 11px;
+      color: #3fb950;
+      text-align: center;
+      margin-top: 6px;
+      min-height: 13px;
     }
   </style>
 </head>
@@ -150,6 +225,46 @@
       <input type="checkbox" id="devmode-toggle" />
       <span class="slider dev"></span>
     </label>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-title">Provider Config</div>
+
+    <div class="form-group">
+      <label>Provider</label>
+      <select id="provider-select">
+        <option value="anthropic">Anthropic</option>
+        <option value="openai">OpenAI</option>
+        <option value="ollama">Ollama (Local)</option>
+        <option value="custom">Custom (Compatible)</option>
+      </select>
+    </div>
+
+    <div class="form-group hidden" id="group-type">
+      <label>API Type</label>
+      <select id="provider-type">
+        <option value="openai">OpenAI Compatible</option>
+        <option value="anthropic">Anthropic Compatible</option>
+      </select>
+    </div>
+
+    <div class="form-group hidden" id="group-url">
+      <label>Base URL</label>
+      <input type="text" id="provider-url" placeholder="https://..." />
+    </div>
+
+    <div class="form-group">
+      <label>API Key</label>
+      <input type="password" id="provider-key" placeholder="sk-..." />
+    </div>
+
+    <div class="form-group">
+      <label>Model Name</label>
+      <input type="text" id="provider-model" placeholder="claude-3-5-sonnet-20241022" />
+    </div>
+
+    <button class="btn-save" id="btn-save">Save Settings</button>
+    <div class="save-status" id="save-status"></div>
   </div>
 
   <div class="footer">chatgpt.com · localhost:8000</div>
