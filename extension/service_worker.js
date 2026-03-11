@@ -21,10 +21,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function analyzeConversation(conversation) {
+  // Read provider config from storage, fallback to anthropic defaults if none saved
+  const storage = await chrome.storage.local.get(["sya_provider"]);
+  const providerConfig = storage.sya_provider || {
+    type: "anthropic",
+    base_url: "https://api.anthropic.com/v1/messages",
+    api_key: "",
+    model: "claude-3-5-sonnet-20241022",
+  };
+
   const response = await fetch(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ conversation }),
+    body: JSON.stringify({
+      conversation,
+      provider: providerConfig
+    }),
   });
 
   if (!response.ok) {
