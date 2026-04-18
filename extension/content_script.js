@@ -274,10 +274,14 @@ function buildConversation() {
             '[data-message-author-role="user"], [data-message-author-role="assistant"]'
         )
     );
-    return allMessages.map((el) => ({
+    const conversation = allMessages.map((el) => ({
         role: el.getAttribute("data-message-author-role"),
         content: extractTextContent(el),
     }));
+    const userCount = conversation.filter((m) => m.role === "user").length;
+    const assistantCount = conversation.filter((m) => m.role === "assistant").length;
+    console.debug(`[SYA] Built conversation: ${conversation.length} messages (${userCount} user, ${assistantCount} assistant)`);
+    return conversation;
 }
 
 // ── Chat change detection ─────────────────────────────────────────────────────
@@ -303,40 +307,58 @@ function resetAnalysisCache() {
     ).forEach((el) => el.remove());
 }
 
-// ── Streaming detection ───────────────────────────────────────────────────────
-// Instead of a fixed debounce, we poll the last assistant message's text
-// until it stabilizes. This handles variable streaming speeds gracefully.
+// ── DOM stability detection ───────────────────────────────────────────────────
+// Polls the DOM until BOTH the number of assistant elements AND the text of
+// the last one have stabilized. This handles two distinct scenarios:
+//   1. Page refresh — ChatGPT renders messages progressively, so the element
+//      count keeps climbing. We must wait for all messages to land.
+//   2. Live streaming — a new response is being streamed, so the last
+//      element's text keeps changing. We must wait for it to finish.
+// Previous bug: we snapshotted elements once and only checked text, so on
+// page refresh we'd see 1 message, declare "stable", and miss the rest.
 
-function waitForStreamingComplete() {
+function waitForDOMStable() {
     return new Promise((resolve) => {
-        const assistantEls = getAssistantElements();
-        if (!assistantEls.length) { resolve(); return; }
-
-        const lastEl = assistantEls[assistantEls.length - 1];
+        let lastCount = 0;
         let lastText = "";
         let stableCount = 0;
-        const STABLE_THRESHOLD = 3;   // 3 consecutive checks with no change
-        const CHECK_MS = 500;
-        const MAX_WAIT_MS = 30_000;   // 30s max wait, then proceed anyway
+        const STABLE_THRESHOLD = 4;     // 4 consecutive checks with no change
+        const CHECK_MS = 600;           // check every 600ms
+        const MAX_WAIT_MS = 30_000;     // 30s max, then proceed anyway
         let elapsed = 0;
 
         const check = () => {
-            const currentText = lastEl.textContent || "";
-            if (currentText === lastText && currentText.length > 0) {
+            // Re-query every tick — this is the key difference.
+            // On page refresh, new elements appear over time.
+            const assistantEls = getAssistantElements();
+            const currentCount = assistantEls.length;
+            const lastEl = assistantEls[assistantEls.length - 1];
+            const currentText = lastEl?.textContent || "";
+
+            if (
+                currentCount === lastCount &&
+                currentText === lastText &&
+                currentCount > 0
+            ) {
                 stableCount++;
                 if (stableCount >= STABLE_THRESHOLD) {
-                    console.debug("[SYA] Streaming complete (text stabilized)");
+                    console.debug(
+                        `[SYA] DOM stabilized: ${currentCount} assistant messages`
+                    );
                     resolve();
                     return;
                 }
             } else {
                 stableCount = 0;
+                lastCount = currentCount;
                 lastText = currentText;
             }
 
             elapsed += CHECK_MS;
             if (elapsed >= MAX_WAIT_MS) {
-                console.debug("[SYA] Streaming wait timed out, proceeding");
+                console.debug(
+                    `[SYA] Stability wait timed out with ${currentCount} assistant messages`
+                );
                 resolve();
                 return;
             }
@@ -344,6 +366,7 @@ function waitForStreamingComplete() {
             setTimeout(check, CHECK_MS);
         };
 
+        // First check after one interval
         setTimeout(check, CHECK_MS);
     });
 }
@@ -625,8 +648,9 @@ async function runAnalysis() {
     if (!enabled) return;
     if (_isAnalyzing) return; // Prevent concurrent runs
 
-    // Wait for the assistant to finish streaming before we read the DOM
-    await waitForStreamingComplete();
+    // Wait for ChatGPT to finish rendering all messages (page load)
+    // or streaming the latest response (live conversation)
+    await waitForDOMStable();
 
     // Detect chat change via URL
     const currentChatId = getConversationId();

@@ -6,7 +6,10 @@
  */
 
 const BACKEND_URL = "http://localhost:8000/analyze";
-const FETCH_TIMEOUT_MS = 180_000; // 3 minute timeout for the full request
+// No client-side fetch timeout. The backend enforces its own per-call timeout
+// (180s), and Chrome's MV3 service worker lifetime (5 min) acts as a natural
+// upper bound. Using AbortController here caused spurious "signal is aborted"
+// errors because Chrome kills the service worker before the timeout fires.
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== "ANALYZE_CONVERSATION") return false;
@@ -21,6 +24,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     })
     .catch((err) => {
       console.error("[SYA service_worker] fetch failed:", err.message || err.name || String(err));
+      // Chrome killing the worker mid-fetch surfaces as AbortError
       const errorType = err.name === "AbortError" ? "timeout" : "backend_offline";
       try { sendResponse({ ok: false, error: errorType }); } catch { /* port closed */ }
     });
@@ -42,29 +46,20 @@ async function analyzeConversation(conversation, previousStands, skipTurns) {
   // Strip the 'id' field which isn't part of the backend ProviderConfig model
   const { id, ...cleanProviderConfig } = providerConfig;
 
-  // Abort controller: kills the fetch if the backend takes too long
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const response = await fetch(BACKEND_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      conversation,
+      provider: cleanProviderConfig,
+      previous_stands: previousStands,
+      skip_turns: skipTurns,
+    }),
+  });
 
-  try {
-    const response = await fetch(BACKEND_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        conversation,
-        provider: cleanProviderConfig,
-        previous_stands: previousStands,
-        skip_turns: skipTurns,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Backend returned HTTP ${response.status}`);
-    }
-
-    return response.json();
-  } finally {
-    clearTimeout(timeout);
+  if (!response.ok) {
+    throw new Error(`Backend returned HTTP ${response.status}`);
   }
+
+  return response.json();
 }
