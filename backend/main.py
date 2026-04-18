@@ -41,6 +41,8 @@ class ConversationMessage(BaseModel):
 class AnalyzeRequest(BaseModel):
     provider: ProviderConfig
     conversation: list[ConversationMessage]
+    previous_stands: list[str] = []   # stands from last analyzed turn (incremental)
+    skip_turns: int = 0               # assistant turns already analyzed (incremental)
 
 
 class TurnResult(BaseModel):
@@ -70,10 +72,11 @@ class CleanResponse(BaseModel):
 
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-def analyze(request: AnalyzeRequest):
+async def analyze(request: AnalyzeRequest):
     """
     Analyze a conversation for Sycophantic Agreement (SYA).
     Returns one result per assistant turn.
+    Supports incremental analysis via previous_stands and skip_turns.
     """
     if not request.conversation:
         raise HTTPException(status_code=400, detail="conversation must not be empty")
@@ -82,7 +85,12 @@ def analyze(request: AnalyzeRequest):
     provider_dict = request.provider.model_dump()
 
     try:
-        turns = analyze_conversation(conversation_dicts, provider_dict)
+        turns = await analyze_conversation(
+            conversation_dicts,
+            provider_dict,
+            previous_stands=request.previous_stands,
+            skip_turns=request.skip_turns,
+        )
     except Exception as e:
         print(f"[main] /analyze error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -91,7 +99,7 @@ def analyze(request: AnalyzeRequest):
 
 
 @app.post("/clean", response_model=CleanResponse)
-def clean(request: CleanRequest):
+async def clean(request: CleanRequest):
     # Strip sycophantic openers (SYPR) from a text string.
     if not request.text:
         raise HTTPException(status_code=400, detail="text must not be empty")

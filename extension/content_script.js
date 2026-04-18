@@ -1,16 +1,28 @@
 /**
  * content_script.js
  * - Watches ChatGPT's DOM for completed assistant turns
- * - Extracts the full conversation
- * - Sends to service worker for SYA analysis
+ * - Waits for streaming to actually finish before triggering analysis
+ * - Uses incremental analysis — only sends new turns to the backend
+ * - Shows loading / error badges so the user knows what's happening
+ * - Detects chat navigation (SPA URL changes) and resets state
+ * - Runs initial analysis on page load for existing messages
  * - Applies red warning badge and SYPR-cleaned text to assistant messages
  * - In dev mode: renders a collapsible panel per turn showing LLM reasoning
  */
 
-const BACKEND_ANALYZE_DELAY_MS = 1200;
 const PROCESSED_ATTR = "data-sya-processed";
 const BADGE_CLASS = "sya-warning-badge";
 const DEV_PANEL_CLASS = "sya-dev-panel";
+const LOADING_CLASS = "sya-loading-badge";
+const ERROR_CLASS = "sya-error-badge";
+
+// ── Incremental analysis state ────────────────────────────────────────────────
+
+let _analyzedAssistantCount = 0;
+let _previousStands = [];
+let _cachedResults = [];
+let _conversationId = null;
+let _isAnalyzing = false;
 
 // Stores the last full analysis result so dev panels can be rebuilt on toggle
 let _lastTurns = [];
@@ -39,6 +51,38 @@ function injectStyles() {
 
     .sya-cleaned-text {
       opacity: 0.88;
+    }
+
+    .${LOADING_CLASS} {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1e1b4b;
+      color: #a5b4fc;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      animation: sya-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes sya-pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .${ERROR_CLASS} {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #44403c;
+      color: #fdba74;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
     }
 
     /* ── Dev panel ── */
@@ -175,6 +219,12 @@ function injectStyles() {
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
+function getAssistantElements() {
+    return Array.from(
+        document.querySelectorAll('[data-message-author-role="assistant"]')
+    );
+}
+
 function extractTextContent(el) {
     // ChatGPT renders message prose inside a div with class "markdown" / "prose".
     // Targeting it avoids grabbing button labels, copy icons, timestamps, etc.
@@ -188,7 +238,6 @@ function extractTextContent(el) {
     // Remove code blocks so they don't pollute stand extraction
     clone.querySelectorAll("pre, code").forEach((c) => c.remove());
     const text = clone.textContent.trim();
-    console.debug("[SYA] extracted text preview:", text.slice(0, 120));
     return text;
 }
 
@@ -204,7 +253,111 @@ function buildConversation() {
     }));
 }
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
+// ── Chat change detection ─────────────────────────────────────────────────────
+
+function getConversationId() {
+    // ChatGPT URLs: chatgpt.com/c/<id> or chatgpt.com (new chat)
+    const match = location.pathname.match(/\/c\/([a-z0-9-]+)/i);
+    return match ? match[1] : "__new__";
+}
+
+function resetAnalysisCache() {
+    console.debug("[SYA] Resetting analysis cache");
+    _analyzedAssistantCount = 0;
+    _previousStands = [];
+    _cachedResults = [];
+    _lastTurns = [];
+    _lastAssistantEls = [];
+    _isAnalyzing = false;
+
+    // Remove all SYA UI elements from the page
+    document.querySelectorAll(
+        `.${BADGE_CLASS}, .${DEV_PANEL_CLASS}, .${LOADING_CLASS}, .${ERROR_CLASS}`
+    ).forEach((el) => el.remove());
+}
+
+// ── Streaming detection ───────────────────────────────────────────────────────
+// Instead of a fixed debounce, we poll the last assistant message's text
+// until it stabilizes. This handles variable streaming speeds gracefully.
+
+function waitForStreamingComplete() {
+    return new Promise((resolve) => {
+        const assistantEls = getAssistantElements();
+        if (!assistantEls.length) { resolve(); return; }
+
+        const lastEl = assistantEls[assistantEls.length - 1];
+        let lastText = "";
+        let stableCount = 0;
+        const STABLE_THRESHOLD = 3;   // 3 consecutive checks with no change
+        const CHECK_MS = 500;
+        const MAX_WAIT_MS = 30_000;   // 30s max wait, then proceed anyway
+        let elapsed = 0;
+
+        const check = () => {
+            const currentText = lastEl.textContent || "";
+            if (currentText === lastText && currentText.length > 0) {
+                stableCount++;
+                if (stableCount >= STABLE_THRESHOLD) {
+                    console.debug("[SYA] Streaming complete (text stabilized)");
+                    resolve();
+                    return;
+                }
+            } else {
+                stableCount = 0;
+                lastText = currentText;
+            }
+
+            elapsed += CHECK_MS;
+            if (elapsed >= MAX_WAIT_MS) {
+                console.debug("[SYA] Streaming wait timed out, proceeding");
+                resolve();
+                return;
+            }
+
+            setTimeout(check, CHECK_MS);
+        };
+
+        setTimeout(check, CHECK_MS);
+    });
+}
+
+// ── Loading / Error badges ────────────────────────────────────────────────────
+
+function showLoadingBadge() {
+    const assistantEls = getAssistantElements();
+    if (!assistantEls.length) return;
+    const lastEl = assistantEls[assistantEls.length - 1];
+
+    if (lastEl.querySelector(`.${LOADING_CLASS}`)) return;
+
+    const badge = document.createElement("div");
+    badge.className = LOADING_CLASS;
+    badge.textContent = "⏳ Analyzing for sycophancy…";
+    lastEl.insertBefore(badge, lastEl.firstChild);
+}
+
+function clearLoadingBadges() {
+    document.querySelectorAll(`.${LOADING_CLASS}`).forEach((el) => el.remove());
+}
+
+function showErrorBadge(message) {
+    clearLoadingBadges();
+    const assistantEls = getAssistantElements();
+    if (!assistantEls.length) return;
+    const lastEl = assistantEls[assistantEls.length - 1];
+
+    if (lastEl.querySelector(`.${ERROR_CLASS}`)) return;
+
+    const badge = document.createElement("div");
+    badge.className = ERROR_CLASS;
+    badge.textContent = `⚠ ${message}`;
+    lastEl.insertBefore(badge, lastEl.firstChild);
+
+    // Auto-remove after 10s
+    setTimeout(() => badge.remove(), 10_000);
+}
+
+// ── SYA Warning Badge ─────────────────────────────────────────────────────────
 
 function applyBadge(assistantEl) {
     if (assistantEl.querySelector(`.${BADGE_CLASS}`)) return;
@@ -217,6 +370,9 @@ function applyBadge(assistantEl) {
 // ── SYPR text replacement ─────────────────────────────────────────────────────
 
 function applyCleanedText(assistantEl, cleanedMessage) {
+    // Skip if already cleaned (idempotent)
+    if (assistantEl.querySelector(".sya-cleaned-text")) return;
+
     const codeBlocks = Array.from(assistantEl.querySelectorAll("pre"));
     const devPanel = assistantEl.querySelector(`.${DEV_PANEL_CLASS}`);
 
@@ -375,9 +531,7 @@ async function isDevMode() {
 function applyResults(data, devmode) {
     if (!data?.turns) return;
 
-    const assistantEls = Array.from(
-        document.querySelectorAll('[data-message-author-role="assistant"]')
-    );
+    const assistantEls = getAssistantElements();
 
     _lastTurns = data.turns;
     _lastAssistantEls = assistantEls;
@@ -423,24 +577,68 @@ function toggleDevPanels(devmode) {
 async function runAnalysis() {
     const enabled = await isEnabled();
     if (!enabled) return;
+    if (_isAnalyzing) return; // Prevent concurrent runs
+
+    // Wait for the assistant to finish streaming before we read the DOM
+    await waitForStreamingComplete();
+
+    // Detect chat change via URL
+    const currentChatId = getConversationId();
+    if (currentChatId !== _conversationId) {
+        resetAnalysisCache();
+        _conversationId = currentChatId;
+    }
 
     const devmode = await isDevMode();
     const conversation = buildConversation();
     if (!conversation.length) return;
 
+    // Count current assistant messages
+    const currentAssistantCount = conversation.filter((m) => m.role === "assistant").length;
+    if (currentAssistantCount <= _analyzedAssistantCount) return; // Nothing new
+
+    _isAnalyzing = true;
+    showLoadingBadge();
+
     chrome.runtime.sendMessage(
-        { type: "ANALYZE_CONVERSATION", conversation },
+        {
+            type: "ANALYZE_CONVERSATION",
+            conversation,
+            previous_stands: _previousStands,
+            skip_turns: _analyzedAssistantCount,
+        },
         (response) => {
+            _isAnalyzing = false;
+            clearLoadingBadges();
+
             if (chrome.runtime.lastError) {
                 console.warn("[SYA] runtime error:", chrome.runtime.lastError.message);
+                showErrorBadge("Extension error — check console");
                 return;
             }
             if (!response?.ok) {
-                if (response?.error === "backend_offline") return; // silent
-                console.warn("[SYA] unexpected response:", response);
+                const msg = response?.error === "timeout"
+                    ? "Analysis timed out"
+                    : response?.error === "backend_offline"
+                    ? "Backend offline — is the server running?"
+                    : "Analysis failed";
+                showErrorBadge(msg);
                 return;
             }
-            applyResults(response.data, devmode);
+
+            // Merge new results with cached ones
+            const newTurns = response.data?.turns || [];
+            _cachedResults = [..._cachedResults, ...newTurns];
+
+            // Update incremental state
+            if (newTurns.length > 0) {
+                const lastNewTurn = newTurns[newTurns.length - 1];
+                _previousStands = lastNewTurn.current_stands || [];
+            }
+            _analyzedAssistantCount = currentAssistantCount;
+
+            // Apply ALL results (cached + new) to the DOM
+            applyResults({ turns: _cachedResults }, devmode);
         }
     );
 }
@@ -459,7 +657,8 @@ let debounceTimer = null;
 
 function scheduleAnalysis() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(runAnalysis, BACKEND_ANALYZE_DELAY_MS);
+    // Short debounce — streaming detection handles the real waiting
+    debounceTimer = setTimeout(runAnalysis, 800);
 }
 
 function startObserver() {
@@ -477,7 +676,32 @@ function startObserver() {
     observer.observe(document.body, { childList: true, subtree: true });
 }
 
+// ── URL change detection (SPA navigation) ─────────────────────────────────────
+// ChatGPT is a SPA — clicking to a different chat changes the URL without
+// a full page reload. We need to detect this and reset analysis state.
+
+function watchUrlChanges() {
+    let lastUrl = location.href;
+    const check = () => {
+        if (location.href !== lastUrl) {
+            console.debug("[SYA] Chat navigation detected:", location.href);
+            lastUrl = location.href;
+            resetAnalysisCache();
+            _conversationId = getConversationId();
+            // Delay to let the new chat's DOM populate
+            setTimeout(runAnalysis, 2500);
+        }
+    };
+    window.addEventListener("popstate", check);
+    setInterval(check, 1000);
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 injectStyles();
 startObserver();
+watchUrlChanges();
+
+// Initial analysis for messages already in the DOM (page load / direct URL)
+_conversationId = getConversationId();
+setTimeout(runAnalysis, 2500);

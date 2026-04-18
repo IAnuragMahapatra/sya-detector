@@ -1,13 +1,52 @@
 """
 Provider-agnostic LLM call layer.
 Dispatches to Anthropic or OpenAI-compatible APIs using official SDKs.
+Async with connection pooling — clients are cached so TCP connections
+are reused across calls instead of opening a new socket every time.
 """
 
 import json
 import re
+import time
 
 import anthropic
 import openai
+
+# Max seconds to wait for a single LLM call before giving up.
+# Raised from 120 → 180 to cover slow cloud-proxy roundtrips.
+# Connection reuse means we no longer waste time on repeated handshakes,
+# so the timeout is mostly for genuinely slow generations.
+_TIMEOUT = 180
+
+# ── Connection-pooled client caches ────────────────────────────────────────────
+# Keyed by (base_url, api_key) so different providers get separate pools
+# but repeated calls to the same provider reuse the existing connection.
+
+_openai_clients: dict[tuple, openai.AsyncOpenAI] = {}
+_anthropic_clients: dict[tuple, anthropic.AsyncAnthropic] = {}
+
+
+def _get_openai_client(config: dict) -> openai.AsyncOpenAI:
+    """Get or create a cached async OpenAI client for this config."""
+    key = (config.get("base_url"), config.get("api_key", ""))
+    if key not in _openai_clients:
+        _openai_clients[key] = openai.AsyncOpenAI(
+            base_url=config.get("base_url"),
+            api_key=config.get("api_key", ""),
+            timeout=_TIMEOUT,
+        )
+    return _openai_clients[key]
+
+
+def _get_anthropic_client(config: dict) -> anthropic.AsyncAnthropic:
+    """Get or create a cached async Anthropic client for this config."""
+    key = (config.get("api_key", ""),)
+    if key not in _anthropic_clients:
+        _anthropic_clients[key] = anthropic.AsyncAnthropic(
+            api_key=config.get("api_key", ""),
+            timeout=_TIMEOUT,
+        )
+    return _anthropic_clients[key]
 
 
 def _extract_json(text: str) -> dict:
@@ -45,17 +84,14 @@ def _extract_json(text: str) -> dict:
 # ── Provider dispatch ──────────────────────────────────────────────────────────
 
 
-def _call_openai_compatible(prompt: str, config: dict) -> str:
+async def _call_openai_compatible(prompt: str, config: dict) -> str:
     """
     Call an OpenAI-compatible API (OpenAI, Ollama, or any compatible endpoint).
-    Uses the official openai SDK with a custom base_url.
+    Uses a cached async client with connection pooling.
     """
-    client = openai.OpenAI(
-        base_url=config.get("base_url"),
-        api_key=config.get("api_key", ""),
-    )
+    client = _get_openai_client(config)
 
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model=config["model"],
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
@@ -64,15 +100,13 @@ def _call_openai_compatible(prompt: str, config: dict) -> str:
     return response.choices[0].message.content or ""
 
 
-def _call_anthropic(prompt: str, config: dict) -> str:
+async def _call_anthropic(prompt: str, config: dict) -> str:
     """
-    Call the Anthropic Messages API using the official anthropic SDK.
+    Call the Anthropic Messages API using a cached async client.
     """
-    client = anthropic.Anthropic(
-        api_key=config.get("api_key", ""),
-    )
+    client = _get_anthropic_client(config)
 
-    response = client.messages.create(
+    response = await client.messages.create(
         model=config["model"],
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
@@ -92,7 +126,7 @@ def _log_config_change(config: dict):
         print(f"\n[Config] Model: {current[0]} | Base URL: {base_url}\n")
         _LAST_CONFIG = current
 
-def _call_provider(prompt: str, config: dict) -> str:
+async def _call_provider(prompt: str, config: dict) -> str:
     """
     Dispatch a prompt to the configured provider.
 
@@ -107,40 +141,48 @@ def _call_provider(prompt: str, config: dict) -> str:
 
     _log_config_change(config)
 
-    if provider_type == "anthropic":
-        raw = _call_anthropic(prompt, config)
-    elif provider_type == "openai":
-        raw = _call_openai_compatible(prompt, config)
-    else:
-        raise ValueError(f"Unknown provider type: {provider_type!r}")
+    t0 = time.time()
+    try:
+        if provider_type == "anthropic":
+            raw = await _call_anthropic(prompt, config)
+        elif provider_type == "openai":
+            raw = await _call_openai_compatible(prompt, config)
+        else:
+            raise ValueError(f"Unknown provider type: {provider_type!r}")
+    except Exception as e:
+        elapsed = time.time() - t0
+        print(f"  ✗ LLM call failed after {elapsed:.1f}s — {e}")
+        raise
 
+    elapsed = time.time() - t0
+    print(f"  ⏱ LLM responded in {elapsed:.1f}s ({len(raw)} chars)")
     return raw
 
 
 # ── Public API (used by pipeline.py) ───────────────────────────────────────────
 
 
-def call_stand_extractor(prompt: str, provider_config: dict) -> dict:
+async def call_stand_extractor(prompt: str, provider_config: dict) -> dict:
     """Call the Stand Extractor / New Info Detector. Parses JSON robustly from the response."""
-    raw = _call_provider(prompt, provider_config)
+    raw = await _call_provider(prompt, provider_config)
     result = _extract_json(raw)
-    
+
     if "stands" in result:
         print(f"  └─ [Stand Extractor] Found {len(result['stands'])} stands")
     elif "new_info_introduced" in result:
         print(f"  └─ [Stand Extractor] New Info: {result['new_info_introduced']}")
     else:
         print("  └─ [Stand Extractor] Done")
-        
+
     return result
 
 
-def call_sya_judge(prompt: str, provider_config: dict) -> dict:
+async def call_sya_judge(prompt: str, provider_config: dict) -> dict:
     """Call the SYA Judge. Parses JSON robustly from the response."""
-    raw = _call_provider(prompt, provider_config)
+    raw = await _call_provider(prompt, provider_config)
     result = _extract_json(raw)
-    
+
     sya_status = result.get('sya_detected', False)
     print(f"  └─ [SYA Judge] SYA Detected: {sya_status}")
-    
+
     return result
