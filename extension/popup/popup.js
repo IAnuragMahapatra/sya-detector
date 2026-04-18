@@ -46,13 +46,15 @@ devmodeToggle.addEventListener("change", () => {
     chrome.storage.local.set({ sya_devmode: devmode });
     updateDevmodeText(devmode);
 
-    // Tell the active tab's content script to show/hide existing dev panels
+    // Tell the active tab's content script to show/hide existing dev panels.
+    // The callback suppresses "Could not establish connection" when the
+    // content script isn't loaded (e.g., user is on a non-ChatGPT tab).
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]?.id) {
             chrome.tabs.sendMessage(tabs[0].id, {
                 type: "DEVMODE_CHANGED",
                 devmode,
-            });
+            }, () => void chrome.runtime.lastError);
         }
     });
 });

@@ -16,11 +16,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     message.previous_stands || [],
     message.skip_turns || 0
   )
-    .then((result) => sendResponse({ ok: true, data: result }))
+    .then((result) => {
+      try { sendResponse({ ok: true, data: result }); } catch { /* port closed */ }
+    })
     .catch((err) => {
-      console.error("[SYA service_worker] fetch failed:", err);
+      console.error("[SYA service_worker] fetch failed:", err.message || err.name || String(err));
       const errorType = err.name === "AbortError" ? "timeout" : "backend_offline";
-      sendResponse({ ok: false, error: errorType });
+      try { sendResponse({ ok: false, error: errorType }); } catch { /* port closed */ }
     });
 
   // Return true to keep the message channel open for async sendResponse

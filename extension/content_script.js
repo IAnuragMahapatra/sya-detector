@@ -16,6 +16,33 @@ const DEV_PANEL_CLASS = "sya-dev-panel";
 const LOADING_CLASS = "sya-loading-badge";
 const ERROR_CLASS = "sya-error-badge";
 
+// ── Extension lifecycle guard ─────────────────────────────────────────────────
+// When the extension is reloaded during development, old content scripts
+// become orphaned. Their chrome.* APIs throw "Extension context invalidated"
+// on every call. This guard detects that and shuts down all activity.
+
+let _dead = false;
+let _observer = null;
+let _urlWatchInterval = null;
+
+function isExtensionValid() {
+    try {
+        return !_dead && !!chrome.runtime?.id;
+    } catch {
+        _dead = true;
+        cleanup();
+        return false;
+    }
+}
+
+function cleanup() {
+    console.debug("[SYA] Extension context invalidated — shutting down");
+    _dead = true;
+    clearTimeout(debounceTimer);
+    if (_observer) { _observer.disconnect(); _observer = null; }
+    if (_urlWatchInterval) { clearInterval(_urlWatchInterval); _urlWatchInterval = null; }
+}
+
 // ── Incremental analysis state ────────────────────────────────────────────────
 
 let _analyzedAssistantCount = 0;
@@ -517,15 +544,33 @@ function buildList(items, extraClass = "") {
 // ── Apply full analysis results ───────────────────────────────────────────────
 
 async function isEnabled() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(["sya_enabled"], (r) => resolve(r.sya_enabled !== false));
-    });
+    if (!isExtensionValid()) return false;
+    try {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(["sya_enabled"], (r) => {
+                if (chrome.runtime.lastError) { resolve(false); return; }
+                resolve(r.sya_enabled !== false);
+            });
+        });
+    } catch {
+        cleanup();
+        return false;
+    }
 }
 
 async function isDevMode() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(["sya_devmode"], (r) => resolve(r.sya_devmode === true));
-    });
+    if (!isExtensionValid()) return false;
+    try {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(["sya_devmode"], (r) => {
+                if (chrome.runtime.lastError) { resolve(false); return; }
+                resolve(r.sya_devmode === true);
+            });
+        });
+    } catch {
+        cleanup();
+        return false;
+    }
 }
 
 function applyResults(data, devmode) {
@@ -575,6 +620,7 @@ function toggleDevPanels(devmode) {
 // ── Core analysis flow ────────────────────────────────────────────────────────
 
 async function runAnalysis() {
+    if (!isExtensionValid()) return;
     const enabled = await isEnabled();
     if (!enabled) return;
     if (_isAnalyzing) return; // Prevent concurrent runs
@@ -600,69 +646,84 @@ async function runAnalysis() {
     _isAnalyzing = true;
     showLoadingBadge();
 
-    chrome.runtime.sendMessage(
-        {
-            type: "ANALYZE_CONVERSATION",
-            conversation,
-            previous_stands: _previousStands,
-            skip_turns: _analyzedAssistantCount,
-        },
-        (response) => {
-            _isAnalyzing = false;
-            clearLoadingBadges();
+    try {
+        chrome.runtime.sendMessage(
+            {
+                type: "ANALYZE_CONVERSATION",
+                conversation,
+                previous_stands: _previousStands,
+                skip_turns: _analyzedAssistantCount,
+            },
+            (response) => {
+                _isAnalyzing = false;
+                clearLoadingBadges();
 
-            if (chrome.runtime.lastError) {
-                console.warn("[SYA] runtime error:", chrome.runtime.lastError.message);
-                showErrorBadge("Extension error — check console");
-                return;
+                if (chrome.runtime.lastError) {
+                    const msg = chrome.runtime.lastError.message || "";
+                    if (msg.includes("invalidated")) { cleanup(); return; }
+                    console.warn("[SYA] runtime error:", msg);
+                    showErrorBadge("Extension error — check console");
+                    return;
+                }
+                if (!response?.ok) {
+                    const msg = response?.error === "timeout"
+                        ? "Analysis timed out"
+                        : response?.error === "backend_offline"
+                        ? "Backend offline — is the server running?"
+                        : "Analysis failed";
+                    showErrorBadge(msg);
+                    return;
+                }
+
+                // Merge new results with cached ones
+                const newTurns = response.data?.turns || [];
+                _cachedResults = [..._cachedResults, ...newTurns];
+
+                // Update incremental state
+                if (newTurns.length > 0) {
+                    const lastNewTurn = newTurns[newTurns.length - 1];
+                    _previousStands = lastNewTurn.current_stands || [];
+                }
+                _analyzedAssistantCount = currentAssistantCount;
+
+                // Apply ALL results (cached + new) to the DOM
+                applyResults({ turns: _cachedResults }, devmode);
             }
-            if (!response?.ok) {
-                const msg = response?.error === "timeout"
-                    ? "Analysis timed out"
-                    : response?.error === "backend_offline"
-                    ? "Backend offline — is the server running?"
-                    : "Analysis failed";
-                showErrorBadge(msg);
-                return;
-            }
-
-            // Merge new results with cached ones
-            const newTurns = response.data?.turns || [];
-            _cachedResults = [..._cachedResults, ...newTurns];
-
-            // Update incremental state
-            if (newTurns.length > 0) {
-                const lastNewTurn = newTurns[newTurns.length - 1];
-                _previousStands = lastNewTurn.current_stands || [];
-            }
-            _analyzedAssistantCount = currentAssistantCount;
-
-            // Apply ALL results (cached + new) to the DOM
-            applyResults({ turns: _cachedResults }, devmode);
-        }
-    );
+        );
+    } catch {
+        _isAnalyzing = false;
+        clearLoadingBadges();
+        cleanup();
+    }
 }
 
 // ── Listen for devmode toggle from popup ─────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === "DEVMODE_CHANGED") {
-        toggleDevPanels(message.devmode);
-    }
-});
+try {
+    chrome.runtime.onMessage.addListener((message) => {
+        if (!isExtensionValid()) return;
+        if (message.type === "DEVMODE_CHANGED") {
+            toggleDevPanels(message.devmode);
+        }
+    });
+} catch {
+    // Extension already invalidated at load time — nothing to do
+}
 
 // ── MutationObserver ──────────────────────────────────────────────────────────
 
 let debounceTimer = null;
 
 function scheduleAnalysis() {
+    if (!isExtensionValid()) return;
     clearTimeout(debounceTimer);
     // Short debounce — streaming detection handles the real waiting
     debounceTimer = setTimeout(runAnalysis, 800);
 }
 
 function startObserver() {
-    const observer = new MutationObserver((mutations) => {
+    _observer = new MutationObserver((mutations) => {
+        if (!isExtensionValid()) return;
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType !== Node.ELEMENT_NODE) continue;
@@ -673,7 +734,7 @@ function startObserver() {
             }
         }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    _observer.observe(document.body, { childList: true, subtree: true });
 }
 
 // ── URL change detection (SPA navigation) ─────────────────────────────────────
@@ -683,6 +744,7 @@ function startObserver() {
 function watchUrlChanges() {
     let lastUrl = location.href;
     const check = () => {
+        if (!isExtensionValid()) return;
         if (location.href !== lastUrl) {
             console.debug("[SYA] Chat navigation detected:", location.href);
             lastUrl = location.href;
@@ -693,7 +755,7 @@ function watchUrlChanges() {
         }
     };
     window.addEventListener("popstate", check);
-    setInterval(check, 1000);
+    _urlWatchInterval = setInterval(check, 1000);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
