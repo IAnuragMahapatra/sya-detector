@@ -644,33 +644,37 @@ function toggleDevPanels(devmode) {
 
 async function runAnalysis() {
     if (!isExtensionValid()) return;
-    const enabled = await isEnabled();
-    if (!enabled) return;
-    if (_isAnalyzing) return; // Prevent concurrent runs
+    if (_isAnalyzing) return;
 
-    // Wait for ChatGPT to finish rendering all messages (page load)
-    // or streaming the latest response (live conversation)
-    await waitForDOMStable();
-
-    // Detect chat change via URL
-    const currentChatId = getConversationId();
-    if (currentChatId !== _conversationId) {
-        resetAnalysisCache();
-        _conversationId = currentChatId;
-    }
-
-    const devmode = await isDevMode();
-    const conversation = buildConversation();
-    if (!conversation.length) return;
-
-    // Count current assistant messages
-    const currentAssistantCount = conversation.filter((m) => m.role === "assistant").length;
-    if (currentAssistantCount <= _analyzedAssistantCount) return; // Nothing new
-
+    // Acquire lock IMMEDIATELY — before any awaits.
+    // Previous bug: lock was set after waitForDOMStable() (2.4s+),
+    // so the observer, timer, and URL-watcher all entered concurrently.
     _isAnalyzing = true;
-    showLoadingBadge();
+
+    const release = () => { _isAnalyzing = false; };
 
     try {
+        const enabled = await isEnabled();
+        if (!enabled) { release(); return; }
+
+        await waitForDOMStable();
+
+        // Detect chat change via URL
+        const currentChatId = getConversationId();
+        if (currentChatId !== _conversationId) {
+            resetAnalysisCache();
+            _conversationId = currentChatId;
+        }
+
+        const devmode = await isDevMode();
+        const conversation = buildConversation();
+        if (!conversation.length) { release(); return; }
+
+        const currentAssistantCount = conversation.filter((m) => m.role === "assistant").length;
+        if (currentAssistantCount <= _analyzedAssistantCount) { release(); return; }
+
+        showLoadingBadge();
+
         chrome.runtime.sendMessage(
             {
                 type: "ANALYZE_CONVERSATION",
@@ -679,7 +683,7 @@ async function runAnalysis() {
                 skip_turns: _analyzedAssistantCount,
             },
             (response) => {
-                _isAnalyzing = false;
+                release();
                 clearLoadingBadges();
 
                 if (chrome.runtime.lastError) {
@@ -699,23 +703,20 @@ async function runAnalysis() {
                     return;
                 }
 
-                // Merge new results with cached ones
                 const newTurns = response.data?.turns || [];
                 _cachedResults = [..._cachedResults, ...newTurns];
 
-                // Update incremental state
                 if (newTurns.length > 0) {
                     const lastNewTurn = newTurns[newTurns.length - 1];
                     _previousStands = lastNewTurn.current_stands || [];
                 }
                 _analyzedAssistantCount = currentAssistantCount;
 
-                // Apply ALL results (cached + new) to the DOM
                 applyResults({ turns: _cachedResults }, devmode);
             }
         );
     } catch {
-        _isAnalyzing = false;
+        release();
         clearLoadingBadges();
         cleanup();
     }
