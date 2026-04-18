@@ -91,9 +91,14 @@ async def analyze_conversation(
             "new_info_introduced": bool, # detected by Model B on preceding user msg
         }
     """
-    turns = []
-    current_previous_stands: list[str] = previous_stands if previous_stands is not None else []
+    assistant_turns = []
     assistant_count = 0
+
+    extract_tasks = []
+    new_info_tasks = []
+
+    async def _dummy_false():
+        return False
 
     for idx, message in enumerate(conversation):
         if message["role"] != "assistant":
@@ -106,35 +111,66 @@ async def analyze_conversation(
             continue
 
         assistant_text = message["content"]
-
-        print(f"\n[Pipeline] Analyzing Turn {idx} (assistant #{assistant_count})")
-
-        # Step 1+2 — Extract stands AND detect new info IN PARALLEL.
-        # These are independent tasks sent to the same model, so we
-        # fire both concurrently and await them together.
         preceding_user_msg = None
         if idx > 0 and conversation[idx - 1]["role"] == "user":
             preceding_user_msg = conversation[idx - 1]["content"]
 
-        if preceding_user_msg:
-            current_stands, new_info_introduced = await asyncio.gather(
-                _safe_extract_stands(assistant_text, provider_config),
-                _safe_detect_new_info(preceding_user_msg, provider_config),
-            )
-        else:
-            current_stands = await _safe_extract_stands(assistant_text, provider_config)
-            new_info_introduced = False
+        assistant_turns.append({
+            "idx": idx,
+            "assistant_count": assistant_count,
+            "assistant_text": assistant_text,
+            "preceding_user_msg": preceding_user_msg,
+        })
 
-        # Step 3 — Judge SYA (depends on steps 1+2, must run after)
-        if current_previous_stands:
-            judgment = await _safe_judge_sya(
-                current_previous_stands, current_stands, new_info_introduced, provider_config
-            )
+        extract_tasks.append(_safe_extract_stands(assistant_text, provider_config))
+        if preceding_user_msg:
+            new_info_tasks.append(_safe_detect_new_info(preceding_user_msg, provider_config))
+        else:
+            new_info_tasks.append(_dummy_false())
+
+    if not assistant_turns:
+        return []
+
+    print(f"\n[Pipeline] Parallel processing {len(assistant_turns)} turns...")
+
+    # Phase 1: Extract stands and detect new info in parallel for all ALL turns
+    results = await asyncio.gather(
+        asyncio.gather(*extract_tasks),
+        asyncio.gather(*new_info_tasks)
+    )
+    all_current_stands = results[0]
+    all_new_info = results[1]
+
+    # Phase 2: Judge SYA in parallel for all turns
+    judge_tasks = []
+
+    async def _dummy_judgment():
+        return {"sya_detected": False, "changed_stands": [], "reason": None}
+
+    for i in range(len(assistant_turns)):
+        curr_stands = all_current_stands[i]
+        new_info = all_new_info[i]
+
+        if i == 0:
+            prev_stands = previous_stands if previous_stands is not None else []
+        else:
+            prev_stands = all_current_stands[i - 1]
+
+        if prev_stands:
+            judge_tasks.append(_safe_judge_sya(prev_stands, curr_stands, new_info, provider_config))
         else:
             # First assistant turn (or first after skip) with no prior stands
-            judgment = {"sya_detected": False, "changed_stands": [], "reason": None}
+            judge_tasks.append(_dummy_judgment())
 
-        # Step 4 — Strip SYPR openers (rule-based, no LLM)
+    all_judgments = await asyncio.gather(*judge_tasks)
+
+    # Phase 3: Assemble results
+    turns = []
+    for i, turn in enumerate(assistant_turns):
+        idx = turn["idx"]
+        assistant_text = turn["assistant_text"]
+        judgment = all_judgments[i]
+
         cleaned_message = strip_sypr(assistant_text)
 
         turns.append(
@@ -145,12 +181,9 @@ async def analyze_conversation(
                 "changed_stands": judgment["changed_stands"],
                 "reason": judgment["reason"],
                 "cleaned_message": cleaned_message,
-                "current_stands": current_stands,
-                "new_info_introduced": new_info_introduced,
+                "current_stands": all_current_stands[i],
+                "new_info_introduced": all_new_info[i],
             }
         )
-
-        # Update previous stands for next iteration
-        current_previous_stands = current_stands
 
     return turns
