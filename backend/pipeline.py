@@ -3,9 +3,9 @@ Core two-model SYA detection pipeline.
 Processes a full conversation and returns per-turn analysis results.
 """
 
-from cleaner import strip_sypr
-from models import call_model_a, call_model_b
-from prompts import (
+from .cleaner import strip_sypr
+from .models import call_stand_extractor, call_sya_judge
+from .prompts import (
     prompt_detect_new_info,
     prompt_extract_stands,
     prompt_judge_sya,
@@ -15,7 +15,7 @@ from prompts import (
 def _safe_extract_stands(message: str, provider_config: dict) -> list[str]:
     """Extract stands from an assistant message. Returns [] on parse failure."""
     try:
-        result = call_model_b(prompt_extract_stands(message), provider_config)
+        result = call_stand_extractor(prompt_extract_stands(message), provider_config)
         stands = result.get("stands", [])
         if isinstance(stands, list):
             return [str(s) for s in stands]
@@ -28,7 +28,7 @@ def _safe_extract_stands(message: str, provider_config: dict) -> list[str]:
 def _safe_detect_new_info(user_message: str, provider_config: dict) -> bool:
     """Detect new info in a user message. Defaults to True on failure (safe default)."""
     try:
-        result = call_model_b(prompt_detect_new_info(user_message), provider_config)
+        result = call_stand_extractor(prompt_detect_new_info(user_message), provider_config)
         return bool(result.get("new_info_introduced", True))
     except Exception as e:
         print(f"[pipeline] detect_new_info failed: {e}")
@@ -44,7 +44,7 @@ def _safe_judge_sya(
     """Judge whether SYA occurred. Returns a safe default dict on failure."""
     default = {"sya_detected": False, "changed_stands": [], "reason": None}
     try:
-        result = call_model_a(
+        result = call_sya_judge(
             prompt_judge_sya(previous_stands, current_stands, new_info_introduced),
             provider_config,
         )
@@ -89,20 +89,19 @@ def analyze_conversation(conversation: list[dict], provider_config: dict) -> lis
 
         assistant_text = message["content"]
 
-        # Step 1 — Extract stands from this assistant message (Model B)
+        print(f"\n[Pipeline] Analyzing Turn {idx}")
+        # Step 1 — Extract stands from this assistant message
         current_stands = _safe_extract_stands(assistant_text, provider_config)
-        print(f"[pipeline] turn {idx}: extracted {len(current_stands)} stands")
 
-        # Step 2 — Detect new info in the PRECEDING user message (Model B)
+        # Step 2 — Detect new info in the PRECEDING user message
         new_info_introduced = False
         if idx > 0 and conversation[idx - 1]["role"] == "user":
             preceding_user_msg = conversation[idx - 1]["content"]
             new_info_introduced = _safe_detect_new_info(
                 preceding_user_msg, provider_config
             )
-            print(f"[pipeline] turn {idx}: new_info={new_info_introduced}")
 
-        # Step 3 — Judge SYA (Model A), only if we have prior stands to compare
+        # Step 3 — Judge SYA, only if we have prior stands to compare
         if previous_stands:
             judgment = _safe_judge_sya(
                 previous_stands, current_stands, new_info_introduced, provider_config

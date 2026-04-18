@@ -51,7 +51,7 @@ def _call_openai_compatible(prompt: str, config: dict) -> str:
     Uses the official openai SDK with a custom base_url.
     """
     client = openai.OpenAI(
-        base_url=config["base_url"],
+        base_url=config.get("base_url"),
         api_key=config.get("api_key", ""),
     )
 
@@ -82,6 +82,16 @@ def _call_anthropic(prompt: str, config: dict) -> str:
     return "".join(block.text for block in response.content if block.type == "text")
 
 
+_LAST_CONFIG = None
+
+def _log_config_change(config: dict):
+    global _LAST_CONFIG
+    current = (config.get("model"), config.get("base_url"))
+    if _LAST_CONFIG != current:
+        base_url = config.get("base_url") or "default"
+        print(f"\n[Config] Model: {current[0]} | Base URL: {base_url}\n")
+        _LAST_CONFIG = current
+
 def _call_provider(prompt: str, config: dict) -> str:
     """
     Dispatch a prompt to the configured provider.
@@ -95,6 +105,8 @@ def _call_provider(prompt: str, config: dict) -> str:
     """
     provider_type = config.get("type", "openai")
 
+    _log_config_change(config)
+
     if provider_type == "anthropic":
         raw = _call_anthropic(prompt, config)
     elif provider_type == "openai":
@@ -102,24 +114,33 @@ def _call_provider(prompt: str, config: dict) -> str:
     else:
         raise ValueError(f"Unknown provider type: {provider_type!r}")
 
-    print(f"[provider:{provider_type}] response ({len(raw)} chars): {raw[:300]}")
     return raw
 
 
 # ── Public API (used by pipeline.py) ───────────────────────────────────────────
 
 
-def call_model_b(prompt: str, provider_config: dict) -> dict:
-    """Call Model B (Extractor). Parses JSON robustly from the response."""
+def call_stand_extractor(prompt: str, provider_config: dict) -> dict:
+    """Call the Stand Extractor / New Info Detector. Parses JSON robustly from the response."""
     raw = _call_provider(prompt, provider_config)
     result = _extract_json(raw)
-    print(f"[model_b] parsed: {result}")
+    
+    if "stands" in result:
+        print(f"  └─ [Stand Extractor] Found {len(result['stands'])} stands")
+    elif "new_info_introduced" in result:
+        print(f"  └─ [Stand Extractor] New Info: {result['new_info_introduced']}")
+    else:
+        print("  └─ [Stand Extractor] Done")
+        
     return result
 
 
-def call_model_a(prompt: str, provider_config: dict) -> dict:
-    """Call Model A (Judge). Parses JSON robustly from the response."""
+def call_sya_judge(prompt: str, provider_config: dict) -> dict:
+    """Call the SYA Judge. Parses JSON robustly from the response."""
     raw = _call_provider(prompt, provider_config)
     result = _extract_json(raw)
-    print(f"[model_a] parsed: {result}")
+    
+    sya_status = result.get('sya_detected', False)
+    print(f"  └─ [SYA Judge] SYA Detected: {sya_status}")
+    
     return result

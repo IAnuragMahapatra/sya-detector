@@ -3,10 +3,10 @@ FastAPI app — route definitions only.
 All business logic lives in pipeline.py and cleaner.py.
 """
 
-from cleaner import strip_sypr
+from .cleaner import strip_sypr
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pipeline import analyze_conversation
+from .pipeline import analyze_conversation
 from pydantic import BaseModel
 
 app = FastAPI(title="SYA Detector", version="1.0.0")
@@ -92,10 +92,7 @@ def analyze(request: AnalyzeRequest):
 
 @app.post("/clean", response_model=CleanResponse)
 def clean(request: CleanRequest):
-    """
-    Strip sycophantic openers (SYPR) from a text string.
-    Rule-based, no LLM involved.
-    """
+    # Strip sycophantic openers (SYPR) from a text string.
     if not request.text:
         raise HTTPException(status_code=400, detail="text must not be empty")
 
