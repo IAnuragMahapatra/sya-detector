@@ -1,7 +1,7 @@
 [project]
 name = "sya-detector"
 version = "0.1.0"
-description = "Detect sycophantic agreement (SYA) in LLM conversations and strip hollow openers (SYPR)."
+description = "Detect sycophantic agreement (SyA) in LLM conversations and strip hollow openers (SYPR)."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

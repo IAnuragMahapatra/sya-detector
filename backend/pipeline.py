@@ -1,5 +1,5 @@
 """
-Core two-model SYA detection pipeline.
+Core two-model SyA detection pipeline.
 Processes a full conversation and returns per-turn analysis results.
 Async with parallel LLM calls and incremental analysis support.
 """
@@ -18,7 +18,9 @@ from .prompts import (
 async def _safe_extract_stands(message: str, provider_config: dict) -> list[str]:
     """Extract stands from an assistant message. Returns [] on parse failure."""
     try:
-        result = await call_stand_extractor(prompt_extract_stands(message), provider_config)
+        result = await call_stand_extractor(
+            prompt_extract_stands(message), provider_config
+        )
         stands = result.get("stands", [])
         if isinstance(stands, list):
             return [str(s) for s in stands]
@@ -31,11 +33,13 @@ async def _safe_extract_stands(message: str, provider_config: dict) -> list[str]
 async def _safe_detect_new_info(user_message: str, provider_config: dict) -> bool:
     """Detect new info in a user message. Defaults to True on failure (safe default)."""
     try:
-        result = await call_stand_extractor(prompt_detect_new_info(user_message), provider_config)
+        result = await call_stand_extractor(
+            prompt_detect_new_info(user_message), provider_config
+        )
         return bool(result.get("new_info_introduced", True))
     except Exception as e:
         print(f"[pipeline] detect_new_info failed: {e}")
-        return True  # If unsure, assume new info → don't flag SYA
+        return True  # If unsure, assume new info → don't flag SyA
 
 
 async def _safe_judge_sya(
@@ -44,7 +48,7 @@ async def _safe_judge_sya(
     new_info_introduced: bool,
     provider_config: dict,
 ) -> dict:
-    """Judge whether SYA occurred. Returns a safe default dict on failure."""
+    """Judge whether SyA occurred. Returns a safe default dict on failure."""
     default = {"sya_detected": False, "changed_stands": [], "reason": None}
     try:
         result = await call_sya_judge(
@@ -68,7 +72,7 @@ async def analyze_conversation(
     skip_turns: int = 0,
 ) -> list[dict]:
     """
-    Analyze a full conversation for SYA per assistant turn.
+    Analyze a full conversation for SyA per assistant turn.
 
     Args:
         conversation: List of {"role": "user"|"assistant", "content": "..."} dicts.
@@ -115,16 +119,20 @@ async def analyze_conversation(
         if idx > 0 and conversation[idx - 1]["role"] == "user":
             preceding_user_msg = conversation[idx - 1]["content"]
 
-        assistant_turns.append({
-            "idx": idx,
-            "assistant_count": assistant_count,
-            "assistant_text": assistant_text,
-            "preceding_user_msg": preceding_user_msg,
-        })
+        assistant_turns.append(
+            {
+                "idx": idx,
+                "assistant_count": assistant_count,
+                "assistant_text": assistant_text,
+                "preceding_user_msg": preceding_user_msg,
+            }
+        )
 
         extract_tasks.append(_safe_extract_stands(assistant_text, provider_config))
         if preceding_user_msg:
-            new_info_tasks.append(_safe_detect_new_info(preceding_user_msg, provider_config))
+            new_info_tasks.append(
+                _safe_detect_new_info(preceding_user_msg, provider_config)
+            )
         else:
             new_info_tasks.append(_dummy_false())
 
@@ -135,13 +143,12 @@ async def analyze_conversation(
 
     # Phase 1: Extract stands and detect new info in parallel for all ALL turns
     results = await asyncio.gather(
-        asyncio.gather(*extract_tasks),
-        asyncio.gather(*new_info_tasks)
+        asyncio.gather(*extract_tasks), asyncio.gather(*new_info_tasks)
     )
     all_current_stands = results[0]
     all_new_info = results[1]
 
-    # Phase 2: Judge SYA in parallel for all turns
+    # Phase 2: Judge SyA in parallel for all turns
     judge_tasks = []
 
     async def _dummy_judgment():
@@ -157,7 +164,9 @@ async def analyze_conversation(
             prev_stands = all_current_stands[i - 1]
 
         if prev_stands:
-            judge_tasks.append(_safe_judge_sya(prev_stands, curr_stands, new_info, provider_config))
+            judge_tasks.append(
+                _safe_judge_sya(prev_stands, curr_stands, new_info, provider_config)
+            )
         else:
             # First assistant turn (or first after skip) with no prior stands
             judge_tasks.append(_dummy_judgment())

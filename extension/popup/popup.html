@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SYA Detector</title>
+  <title>Drift</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Mulish:wght@400;600;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
       --ref-neutral-800: oklch(22% 0.02 250);
       --ref-neutral-900: oklch(14% 0.02 250);
       --ref-neutral-950: oklch(10% 0.02 250);
-      
+
       --ref-accent-base: oklch(62% 0.19 25); /* Industrial orange/red */
       --ref-accent-hover: oklch(from var(--ref-accent-base) calc(l - 0.08) c h);
       --ref-dev-base: oklch(65% 0.15 290); /* Dev purpleish but shifted */
@@ -28,7 +28,7 @@
       --color-surface: var(--ref-neutral-900);
       --color-surface-hover: var(--ref-neutral-800);
       --color-border: var(--ref-neutral-800);
-      
+
       --color-text-primary: var(--ref-neutral-50);
       --color-text-secondary: var(--ref-neutral-200);
       --color-text-muted: var(--ref-neutral-400);
@@ -224,7 +224,7 @@
     input:checked + .slider.dev {
       background: var(--ref-dev-base);
     }
-    
+
     input:checked + .slider.sypr {
       background: oklch(60% 0.15 150); /* Greenish for clean text */
     }
@@ -355,8 +355,8 @@
   <!-- HOME VIEW -->
   <div id="view-home" class="view active">
     <div class="header">
-      <h1 class="title">SYA Detector</h1>
-      <div class="subtitle">Sycophantic Agreement Interceptor</div>
+      <h1 class="title">Drift</h1>
+      <div class="subtitle">Real-time stance shift detection</div>
     </div>
 
     <div class="control-group">
@@ -381,11 +381,11 @@
           <span class="slider dev"></span>
         </label>
       </div>
-      
+
       <div class="toggle-row">
         <div class="toggle-info">
-          <div class="toggle-label">SYPR DELETION</div>
-          <div class="status-text" id="sypr-status-text">STRIP PREAMBLES</div>
+          <div class="toggle-label">SyPr DELETION</div>
+          <div class="status-text" id="sypr-status-text">STRIP PRAISE</div>
         </div>
         <label class="switch">
           <input type="checkbox" id="sypr-toggle" aria-label="Toggle SYPR Deletion" />

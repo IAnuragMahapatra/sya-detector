@@ -3,13 +3,14 @@ FastAPI app — route definitions only.
 All business logic lives in pipeline.py and cleaner.py.
 """
 
-from .cleaner import strip_sypr
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .pipeline import analyze_conversation
 from pydantic import BaseModel
 
-app = FastAPI(title="SYA Detector", version="1.0.0")
+from .cleaner import strip_sypr
+from .pipeline import analyze_conversation
+
+app = FastAPI(title="SyA Detector", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,8 +42,8 @@ class ConversationMessage(BaseModel):
 class AnalyzeRequest(BaseModel):
     provider: ProviderConfig
     conversation: list[ConversationMessage]
-    previous_stands: list[str] = []   # stands from last analyzed turn (incremental)
-    skip_turns: int = 0               # assistant turns already analyzed (incremental)
+    previous_stands: list[str] = []  # stands from last analyzed turn (incremental)
+    skip_turns: int = 0  # assistant turns already analyzed (incremental)
 
 
 class TurnResult(BaseModel):
@@ -74,7 +75,7 @@ class CleanResponse(BaseModel):
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: AnalyzeRequest):
     """
-    Analyze a conversation for Sycophantic Agreement (SYA).
+    Analyze a conversation for Sycophantic Agreement (SyA).
     Returns one result per assistant turn.
     Supports incremental analysis via previous_stands and skip_turns.
     """

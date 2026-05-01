@@ -23,7 +23,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       try { sendResponse({ ok: true, data: result }); } catch { /* port closed */ }
     })
     .catch((err) => {
-      console.error("[SYA service_worker] fetch failed:", err.message || err.name || String(err));
+      console.error("[Drift] fetch failed:", err.message || err.name || String(err));
       // Chrome killing the worker mid-fetch surfaces as AbortError
       const errorType = err.name === "AbortError" ? "timeout" : "backend_offline";
       try { sendResponse({ ok: false, error: errorType }); } catch { /* port closed */ }

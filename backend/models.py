@@ -118,6 +118,7 @@ async def _call_anthropic(prompt: str, config: dict) -> str:
 
 _LAST_CONFIG = None
 
+
 def _log_config_change(config: dict):
     global _LAST_CONFIG
     current = (config.get("model"), config.get("base_url"))
@@ -125,6 +126,7 @@ def _log_config_change(config: dict):
         base_url = config.get("base_url") or "default"
         print(f"\n[Config] Model: {current[0]} | Base URL: {base_url}\n")
         _LAST_CONFIG = current
+
 
 async def _call_provider(prompt: str, config: dict) -> str:
     """
@@ -178,11 +180,11 @@ async def call_stand_extractor(prompt: str, provider_config: dict) -> dict:
 
 
 async def call_sya_judge(prompt: str, provider_config: dict) -> dict:
-    """Call the SYA Judge. Parses JSON robustly from the response."""
+    """Call the SyA Judge. Parses JSON robustly from the response."""
     raw = await _call_provider(prompt, provider_config)
     result = _extract_json(raw)
 
-    sya_status = result.get('sya_detected', False)
-    print(f"  └─ [SYA Judge] SYA Detected: {sya_status}")
+    sya_status = result.get("sya_detected", False)
+    print(f"  └─ [SyA Judge] SyA Detected: {sya_status}")
 
     return result

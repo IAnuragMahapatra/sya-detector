@@ -1,61 +1,71 @@
-# SYA Detector ⚠
+# Drift: Real-time stance shift detection for LLMs
 
-> *Because "Great question! You're absolutely right!" isn't an answer — it's a surrender.*
+> A local pipeline to detect and mitigate distinct sycophantic behaviors in LLMs.
 
-LLMs are trained to be agreeable. That's mostly fine, until it isn't. Push back on something a model just told you, and there's a decent chance it quietly folds — not because you gave it a better argument, but because you disagreed. It'll reframe its previous answer, add softening caveats, or outright reverse course, all while sounding perfectly confident. No acknowledgement. No reasoning. Just... compliance.
+Large Language Models (LLMs) frequently exhibit sycophancy, generally defined as excessive agreement with or flattery of a user. Recent research ([Chen et al., 2025](https://arxiv.org/pdf/2509.21305)) demonstrates that sycophancy is not a single construct. Instead, behaviors like "sycophantic agreement" and "sycophantic praise" are encoded along distinct linear directions in a model's latent space and must be handled independently.
 
-This tool catches that. It watches your ChatGPT conversations in real-time, flags the moments a model capitulates without cause, and quietly strips the hollow opener fluff (*"Absolutely! That's a great point..."*) that pads every response before the actual answer begins.
-
-It's a PoC. It's opinionated. It runs entirely on your machine.
+This tool applies that principle to ChatGPT interactions in real time. By separating the behaviors, it flags unjustified stance changes (Sycophantic Agreement) while structurally removing flattery (Sycophantic Praise) to ensure objective outputs.
 
 ---
 
-## What It Catches
+## What it catches
 
-There are two distinct behaviors worth separating:
+The primary focus of this tool is identifying **SyA (Sycophantic Agreement)**.
 
-**SYPR — Sycophantic Preamble Response** is the easy one. These are the reflexive affirmations LLMs fire before answering anything — *"Great question!"*, *"Certainly!"*, *"That's a really insightful observation."* Pure RLHF residue. They carry zero information. The SYPR stripper kills them with a regex pass, no model needed, and the cleaned text renders slightly muted so you know a cut was made.
+**SyA (Opinion Sycophancy)** occurs when a model echoes a user's claim or reverses its previous position simply because the user pushed back, without any new factual evidence being introduced. The tool tracks the model's stance across the conversation and flags these unjustified changes. If new information is provided by the user, the change is treated as legitimate agreement. The objective is to catch when a model abandons logic to avoid conflict.
 
-**SYA — Sycophantic Agreement** is the harder, more important one. This is when a model reverses or softens a previously stated position simply because you pushed back — not because you introduced new evidence or a better argument, just because you expressed disagreement. The pipeline tracks the model's stance across turns and flags it when that happens. If you *did* provide new information, the position change is treated as legitimate and ignored. The goal is to catch capitulation, not correct reasoning.
-
----
-
-## How It Works
-
-The backend uses a two-model pipeline running locally via Ollama. Both models are the same `qwen2.5:7b` — just different system prompts and jobs.
-
-**Model B (Extractor)** runs twice per assistant turn. First on the assistant message, pulling out every explicit position as a short atomic statement. Then on the preceding user message, checking whether any new factual information was introduced. It outputs strict JSON both times.
-
-**Model A (Judge)** runs once. It gets the previous turn's stands, the current stands, and the `new_info_introduced` flag. If the stands shifted and the user brought nothing new to the table — that's a flag.
-
-The reason for splitting the task is simple: asking a single 7B model to read a full conversation and reason about stance drift across turns is too much at once. It loses the thread. Giving each model one focused job — extract, then judge — keeps each task well within what a small model handles reliably.
+**SyPr (Sycophantic Praise)** is a secondary, operational feature targeting flattery. These are the reflexive, praising phrases like "Great question!" or "You are absolutely right!" that models use before providing a response. Because research shows this praise operates independently of factual agreement, the tool removes it using rule-based parsing. This keeps the conversation focused without requiring additional model inference.
 
 ---
 
-## Features
+## Architecture
 
-- **SYA Detection** — Flags unjustified position flips across conversation turns with a one-sentence explanation of what changed and why it's a flag.
-- **SYPR Stripper** — Rule-based, zero-latency removal of hollow openers. No model call, no delay.
-- **Developer Mode** — A collapsible inspection panel under every assistant message showing the full pipeline trace: extracted stands, what changed, whether new info was present, what was stripped.
-- **Non-destructive** — Only prose is touched. Code blocks and formatting are left exactly as-is.
-- **Fully local** — Nothing leaves your machine. No API keys, no external services.
+The system uses a provider-agnostic backend with a two-model pipeline designed for reliability and performance.
+
+### 1. Two-Model Pipeline
+
+The detection logic is split into two specialized tasks to keep processing within the capabilities of smaller local models while maintaining high accuracy.
+
+- **Model B: Extractor / New Info Detector**
+  Runs twice per assistant turn. First, it analyzes the assistant's message to extract explicit positions as a list of atomic "stands". Second, it analyzes the preceding user message to determine if any new factual information was introduced that might justify a change in the model's stance.
+- **Model A: Judge**
+  Runs once per turn. It compares the extracted stands from the current turn with those of the previous turn. If a shift is detected and Model B indicates no new information was introduced, Model A flags the turn as Sycophantic Agreement.
+
+### 2. Provider Independence
+
+The backend is built to work with any provider supporting OpenAI or Anthropic compatible endpoints. This includes:
+
+- **Local Models**: Ollama, vLLM, or any local inference server.
+- **Cloud Providers**: OpenRouter, Gemini, DeepSeek, Anthropic, or OpenAI.
+
+The system uses connection-pooled client caches to reuse TCP sockets across calls, significantly reducing latency for parallel LLM requests.
+
+### 3. Telemetry Mode
+
+Formerly Developer Mode, **Telemetry Mode** provides a real-time inspection panel under every assistant message. It displays the full internal trace of the pipeline:
+
+- Extracted stands for the current turn.
+- Detected shifts from the previous turn.
+- New info detection results.
+- The Judge's final verdict and reasoning.
+- A diff showing exactly what SyPr text was removed.
 
 ---
 
-## Structure
+## Project Structure
 
 ```text
-sya-detector/
+drift/
 ├── backend/
-│   ├── main.py          # FastAPI routes
-│   ├── pipeline.py      # Two-model SYA detection loop
-│   ├── prompts.py       # All prompt templates
-│   ├── cleaner.py       # SYPR stripping (rule-based)
-│   └── models.py        # Ollama HTTP wrappers
+│   ├── main.py          # FastAPI routes and configuration
+│   ├── pipeline.py      # Two-model SyA detection loop
+│   ├── prompts.py       # Prompt templates for Extractor and Judge
+│   ├── cleaner.py       # SyPr (Sycophantic Praise) stripping
+│   └── models.py        # Connection-pooled LLM client layer
 ├── extension/
-│   ├── manifest.json    # MV3
-│   ├── content_script.js
-│   ├── service_worker.js
+│   ├── manifest.json    # Chrome MV3 manifest
+│   ├── content_script.js# DOM observer and UI injection
+│   ├── service_worker.js# Backend communication relay
 │   └── popup/
 │       ├── popup.html
 │       └── popup.js
@@ -66,57 +76,39 @@ sya-detector/
 
 ## Prerequisites
 
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv) for dependency management
-- [Ollama](https://ollama.com) running locally with the model pulled:
-
-  ```bash
-  ollama pull qwen2.5:7b
-  ```
-
+- Python 3.11 or higher
+- [uv](https://github.com/astral-sh/uv) for managing dependencies
+- Any LLM provider supporting OpenAI or Anthropic compatible APIs.
 - Google Chrome
 
 ---
 
 ## Quick Start
 
-### 1. Start the backend
+### 1. Start the backend server
 
 ```bash
 uv run uvicorn backend.main:app --reload --port 8000
 ```
 
-> Currently tuned for `deepseek-v3.2:cloud` but works with any standard chat model. Swap it out in `backend/models.py`.
+### 2. Load the extension in Chrome
 
-### 2. Load the extension
+1. Open Chrome and go to `chrome://extensions`
+2. Enable **Developer mode** at the top right
+3. Click **Load unpacked** and select the `extension/` folder
+4. Pin the Drift extension to your toolbar
 
-1. Open Chrome → `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked** → select the `extension/` folder
-4. Pin the ⚠ SYA Detector extension to your toolbar
-
-Then just use ChatGPT normally. The extension handles the rest.
+Configure your provider (Anthropic, OpenAI, or a custom URL for local models like Ollama) in the extension popup. Now you can use ChatGPT as usual; the extension handles the detection in the background.
 
 ---
 
 ## Usage
 
-Head to [chatgpt.com](https://chatgpt.com) with the backend running. The extension watches the DOM via `MutationObserver` and fires after each assistant turn finishes streaming.
+Open [chatgpt.com](https://chatgpt.com) while the backend is running. The extension watches the page and triggers after each assistant response finishes.
 
-- If SYA is detected → a red `⚠ SYA Detected` badge appears above the message with a reason
-- All responses → hollow openers are stripped, cleaned text renders slightly muted
-
-Use the popup toggle to turn detection on or off at any time.
-
-### Developer Mode
-
-Flip on **Developer Mode** in the popup and a collapsible dark panel will appear under every assistant message with the full pipeline trace:
-
-- Judge's verdict and one-sentence reason
-- Which stands changed between turns
-- Full extracted stands for the current turn
-- Whether the preceding user message introduced new information
-- A diff of exactly what SYPR text was stripped
+- **SyA Flags**: If Sycophantic Agreement is found, a red `Drift Detected` badge appears above the message with the judge's reasoning.
+- **SyPr Removal**: Reflexive openers are removed automatically and the cleaned text appears slightly muted.
+- **Telemetry Mode Toggle**: Use the popup toggle to enable the detailed inspection panel.
 
 ---
 
@@ -124,12 +116,17 @@ Flip on **Developer Mode** in the popup and a collapsible dark panel will appear
 
 ### `POST /analyze`
 
-Runs the full pipeline. Returns per-turn SYA results and SYPR-cleaned text for every assistant message.
+Runs the full pipeline. Supports incremental analysis to avoid re-processing old turns.
 
 **Request:**
 
 ```json
 {
+  "provider": {
+    "type": "openai",
+    "base_url": "http://localhost:11434/v1",
+    "model": "qwen2.5:7b"
+  },
   "conversation": [
     { "role": "user", "content": "..." },
     { "role": "assistant", "content": "..." }
@@ -137,26 +134,9 @@ Runs the full pipeline. Returns per-turn SYA results and SYPR-cleaned text for e
 }
 ```
 
-**Response:**
-
-```json
-{
-  "turns": [
-    {
-      "turn_index": 2,
-      "assistant_message": "...",
-      "sya_detected": true,
-      "changed_stands": ["previously said X, now says Y"],
-      "reason": "Model reversed position after user pushback with no new evidence.",
-      "cleaned_message": "..."
-    }
-  ]
-}
-```
-
 ### `POST /clean`
 
-SYPR stripping only — rule-based, no model call, near-instant.
+SyPr stripping only: rule-based, zero-latency.
 
 **Request:** `{ "text": "..." }`
 **Response:** `{ "cleaned": "..." }`
@@ -165,26 +145,25 @@ SYPR stripping only — rule-based, no model call, near-instant.
 
 ## Roadmap
 
-- [ ] Claude and Grok shared link parsing (website mode)
-- [ ] Per-platform DOM adapters (Claude.ai, Grok)
-- [ ] Confidence scores on SYA flags
-- [ ] Stronger judge model option for production use
+- [ ] Support for Claude.ai and Grok web adapters
+- [ ] Confidence scores for SyA flags
+- [ ] Option to use a stronger cloud-based judge model
 - [ ] Export flagged conversations as annotated reports
 
 ---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) for details.
+MIT (see the [LICENSE](./LICENSE) file for details).
 
 ---
 
 ## Acknowledgments
 
-Built alongside **Antigravity** (Google DeepMind), with contributions down the line from **Claude Opus 4.6** and **Gemini 3.1 Pro**.
+This project was built alongside **Antigravity** (Google DeepMind). It also includes contributions from **Claude Opus 4.6** and **Gemini 3.1 Pro**.
 
 ---
 
 ## Contact
 
-Built by **Anurag Mahapatra** — reach out at <anurag2005om@gmail.com>
+Built by **Anurag Mahapatra**. You can reach out at <anurag2005om@gmail.com>.

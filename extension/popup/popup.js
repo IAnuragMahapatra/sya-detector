@@ -49,7 +49,7 @@ function updateDevmodeText(enabled) {
 }
 
 function updateSyprText(enabled) {
-    syprStatusText.textContent = enabled ? "STRIP PREAMBLES" : "PREAMBLES KEPT";
+    syprStatusText.textContent = enabled ? "STRIP PRAISE" : "PRAISE KEPT";
     if (enabled) {
         syprStatusText.classList.add("sypr-active");
     } else {
@@ -324,8 +324,8 @@ btnSaveProvider.addEventListener("click", async () => {
         }
 
     } catch (err) {
-        console.error("[SYA] Fetch models error:", err);
-        providerStatus.textContent = "⚠ Auto-fetch failed. Enter manually.";
+        console.error("[Drift] Fetch models error:", err);
+        providerStatus.textContent = "Auto-fetch failed. Enter manually.";
         providerStatus.style.color = "var(--ref-accent-base)";
         enableModelSection(false);
     }

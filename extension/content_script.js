@@ -36,7 +36,7 @@ function isExtensionValid() {
 }
 
 function cleanup() {
-    console.debug("[SYA] Extension context invalidated — shutting down");
+    console.debug("[Drift] Extension context invalidated — shutting down");
     _dead = true;
     clearTimeout(debounceTimer);
     if (_observer) { _observer.disconnect(); _observer = null; }
@@ -323,7 +323,7 @@ function buildConversation() {
     }));
     const userCount = conversation.filter((m) => m.role === "user").length;
     const assistantCount = conversation.filter((m) => m.role === "assistant").length;
-    console.debug(`[SYA] Built conversation: ${conversation.length} messages (${userCount} user, ${assistantCount} assistant)`);
+    console.debug(`[Drift] Built conversation: ${conversation.length} messages (${userCount} user, ${assistantCount} assistant)`);
     return conversation;
 }
 
@@ -336,7 +336,7 @@ function getConversationId() {
 }
 
 function resetAnalysisCache() {
-    console.debug("[SYA] Resetting analysis cache");
+    console.debug("[Drift] Resetting analysis cache");
     _analyzedAssistantCount = 0;
     _previousStands = [];
     _cachedResults = [];
@@ -344,7 +344,7 @@ function resetAnalysisCache() {
     _lastAssistantEls = [];
     _isAnalyzing = false;
 
-    // Remove all SYA UI elements from the page
+    // Remove all SyA UI elements from the page
     document.querySelectorAll(
         `.${BADGE_CLASS}, .${DEV_PANEL_CLASS}, .${LOADING_CLASS}, .${ERROR_CLASS}`
     ).forEach((el) => el.remove());
@@ -386,7 +386,7 @@ function waitForDOMStable() {
                 stableCount++;
                 if (stableCount >= STABLE_THRESHOLD) {
                     console.debug(
-                        `[SYA] DOM stabilized: ${currentCount} assistant messages`
+                        `[Drift] DOM stabilized: ${currentCount} assistant messages`
                     );
                     resolve();
                     return;
@@ -400,7 +400,7 @@ function waitForDOMStable() {
             elapsed += CHECK_MS;
             if (elapsed >= MAX_WAIT_MS) {
                 console.debug(
-                    `[SYA] Stability wait timed out with ${currentCount} assistant messages`
+                    `[Drift] Stability wait timed out with ${currentCount} assistant messages`
                 );
                 resolve();
                 return;
@@ -425,7 +425,7 @@ function showLoadingBadge() {
 
     const badge = document.createElement("div");
     badge.className = LOADING_CLASS;
-    badge.textContent = "⏳ Analyzing for sycophancy…";
+    badge.textContent = "⏳ Detecting stance shifts…";
     lastEl.insertBefore(badge, lastEl.firstChild);
 }
 
@@ -443,20 +443,20 @@ function showErrorBadge(message) {
 
     const badge = document.createElement("div");
     badge.className = ERROR_CLASS;
-    badge.textContent = `⚠ ${message}`;
+    badge.textContent = `${message}`;
     lastEl.insertBefore(badge, lastEl.firstChild);
 
     // Auto-remove after 10s
     setTimeout(() => badge.remove(), 10_000);
 }
 
-// ── SYA Warning Badge ─────────────────────────────────────────────────────────
+// ── SyA Warning Badge ─────────────────────────────────────────────────────────
 
 function applyBadge(assistantEl) {
     if (assistantEl.querySelector(`.${BADGE_CLASS}`)) return;
     const badge = document.createElement("div");
     badge.className = BADGE_CLASS;
-    badge.textContent = "⚠ SYA Detected — position changed without new evidence";
+    badge.textContent = "Drift Detected — position shift without new evidence";
     assistantEl.insertBefore(badge, assistantEl.firstChild);
 }
 
@@ -470,10 +470,10 @@ function applyText(assistantEl, text, syprEnabled) {
     if (!originalWrapper) {
         originalWrapper = document.createElement("div");
         originalWrapper.className = "sya-original-content";
-        
+
         // Find the actual prose container
         const proseEl = assistantEl.querySelector(".markdown.prose") || assistantEl;
-        
+
         // We wrap the inner contents of proseEl
         while (proseEl.firstChild) {
             originalWrapper.appendChild(proseEl.firstChild);
@@ -486,7 +486,7 @@ function applyText(assistantEl, text, syprEnabled) {
         cleanedWrapper.className = "sya-cleaned-text";
         // We style it to look like normal text but pre-wrap so line breaks work
         cleanedWrapper.style.whiteSpace = "pre-wrap";
-        
+
         const proseEl = assistantEl.querySelector(".markdown.prose") || assistantEl;
         proseEl.appendChild(cleanedWrapper);
     }
@@ -511,7 +511,7 @@ function buildDevPanel(turn) {
 
     const title = document.createElement("span");
     title.className = "sya-dev-title";
-    title.textContent = "🛠 SYA Dev Panel";
+    title.textContent = "🛠 Drift Telemetry";
 
     const chevron = document.createElement("span");
     chevron.className = "sya-dev-chevron";
@@ -529,11 +529,11 @@ function buildDevPanel(turn) {
         chevron.classList.toggle("open", !isCollapsed);
     });
 
-    // Section: SYA Verdict
+    // Section: SyA Verdict
     body.appendChild(buildSection("Verdict", () => {
         const pill = document.createElement("span");
         pill.className = `sya-dev-pill ${turn.sya_detected ? "flagged" : "clean"}`;
-        pill.textContent = turn.sya_detected ? "⚠ SYA Detected" : "✓ Clean";
+        pill.textContent = turn.sya_detected ? "Drift Detected" : "✓ Static";
         return pill;
     }));
 
@@ -571,7 +571,7 @@ function buildDevPanel(turn) {
     }));
 
     // Section: SYPR diff
-    body.appendChild(buildSection("SYPR Opener Strip", () => {
+    body.appendChild(buildSection("SyPr Praise Strip", () => {
         const container = document.createElement("div");
         container.className = "sya-sypr-diff";
 
@@ -779,7 +779,7 @@ async function runAnalysis() {
                 if (chrome.runtime.lastError) {
                     const msg = chrome.runtime.lastError.message || "";
                     if (msg.includes("invalidated")) { cleanup(); return; }
-                    console.warn("[SYA] runtime error:", msg);
+                    console.warn("[Drift] runtime error:", msg);
                     showErrorBadge("Extension error — check console");
                     return;
                 }
@@ -787,8 +787,8 @@ async function runAnalysis() {
                     const msg = response?.error === "timeout"
                         ? "Analysis timed out"
                         : response?.error === "backend_offline"
-                        ? "Backend offline — is the server running?"
-                        : "Analysis failed";
+                            ? "Backend offline — is the server running?"
+                            : "Analysis failed";
                     showErrorBadge(msg);
                     return;
                 }
@@ -863,7 +863,7 @@ function watchUrlChanges() {
     const check = () => {
         if (!isExtensionValid()) return;
         if (location.href !== lastUrl) {
-            console.debug("[SYA] Chat navigation detected:", location.href);
+            console.debug("[SyA] Chat navigation detected:", location.href);
             lastUrl = location.href;
             resetAnalysisCache();
             _conversationId = getConversationId();

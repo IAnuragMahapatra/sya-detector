@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SYA Detector",
+  "name": "Drift",
   "version": "1.0.0",
-  "description": "Detects sycophantic agreement in ChatGPT and strips hollow openers.",
+  "description": "Real-time stance shift detection for LLMs.",
   "permissions": [
     "storage",
     "activeTab"
@@ -26,7 +26,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "SYA Detector",
+    "default_title": "Drift",
     "default_icon": "icons/icon.png"
   },
   "icons": {
