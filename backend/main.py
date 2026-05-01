@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from .cleaner import strip_sypr
 from .pipeline import analyze_conversation
 
-app = FastAPI(title="SyA Detector", version="1.0.0")
+app = FastAPI(title="Drift", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

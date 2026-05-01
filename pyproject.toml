@@ -1,5 +1,5 @@
 [project]
-name = "sya-detector"
+name = "Drift"
 version = "0.1.0"
 description = "Detect sycophantic agreement (SyA) in LLM conversations and strip hollow openers (SYPR)."
 readme = "README.md"

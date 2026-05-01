@@ -147,7 +147,6 @@ SyPr stripping only: rule-based, zero-latency.
 
 - [ ] Support for Claude.ai and Grok web adapters
 - [ ] Confidence scores for SyA flags
-- [ ] Option to use a stronger cloud-based judge model
 - [ ] Export flagged conversations as annotated reports
 
 ---
