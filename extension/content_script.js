@@ -127,7 +127,7 @@ function injectStyles() {
       font-weight: 800;
       text-transform: uppercase;
       padding: 4px 10px;
-      border-radius: 2px;
+      border-radius: 6px;
       margin-bottom: 8px;
     }
 
@@ -148,7 +148,7 @@ function injectStyles() {
 
     .${DEV_PANEL_CLASS} ::-webkit-scrollbar-thumb {
       background: var(--sya-border);
-      border-radius: 2px;
+      border-radius: 6px;
     }
 
     .${DEV_PANEL_CLASS} ::-webkit-scrollbar-thumb:hover {
@@ -158,7 +158,7 @@ function injectStyles() {
     .${DEV_PANEL_CLASS} {
       margin-top: 10px;
       border: 1px solid var(--sya-border);
-      border-radius: 2px;
+      border-radius: 6px;
       background: var(--sya-bg);
       color: var(--sya-text);
       font-size: 13px;
@@ -462,22 +462,41 @@ function applyBadge(assistantEl) {
 
 // ── SYPR text replacement ─────────────────────────────────────────────────────
 
-function applyCleanedText(assistantEl, cleanedMessage) {
-    // Skip if already cleaned (idempotent)
-    if (assistantEl.querySelector(".sya-cleaned-text")) return;
+function applyText(assistantEl, text, syprEnabled) {
+    let originalWrapper = assistantEl.querySelector(".sya-original-content");
+    let cleanedWrapper = assistantEl.querySelector(".sya-cleaned-text");
 
-    const codeBlocks = Array.from(assistantEl.querySelectorAll("pre"));
-    const devPanel = assistantEl.querySelector(`.${DEV_PANEL_CLASS}`);
+    // First time we are modifying this element
+    if (!originalWrapper) {
+        originalWrapper = document.createElement("div");
+        originalWrapper.className = "sya-original-content";
+        
+        // Find the actual prose container
+        const proseEl = assistantEl.querySelector(".markdown.prose") || assistantEl;
+        
+        // We wrap the inner contents of proseEl
+        while (proseEl.firstChild) {
+            originalWrapper.appendChild(proseEl.firstChild);
+        }
+        proseEl.appendChild(originalWrapper);
+    }
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "sya-cleaned-text";
-    wrapper.textContent = cleanedMessage;
+    if (!cleanedWrapper) {
+        cleanedWrapper = document.createElement("div");
+        cleanedWrapper.className = "sya-cleaned-text";
+        // We style it to look like normal text but pre-wrap so line breaks work
+        cleanedWrapper.style.whiteSpace = "pre-wrap";
+        
+        const proseEl = assistantEl.querySelector(".markdown.prose") || assistantEl;
+        proseEl.appendChild(cleanedWrapper);
+    }
 
-    while (assistantEl.firstChild) assistantEl.removeChild(assistantEl.firstChild);
+    // Update the text just in case it changed
+    cleanedWrapper.textContent = text;
 
-    assistantEl.appendChild(wrapper);
-    codeBlocks.forEach((cb) => assistantEl.appendChild(cb));
-    if (devPanel) assistantEl.appendChild(devPanel);
+    // Toggle visibility
+    originalWrapper.style.display = syprEnabled ? "none" : "";
+    cleanedWrapper.style.display = syprEnabled ? "" : "none";
 }
 
 // ── Dev panel ─────────────────────────────────────────────────────────────────
@@ -639,7 +658,21 @@ async function isDevMode() {
     }
 }
 
-function applyResults(data, devmode) {
+function isSyprEnabled() {
+    try {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(["sya_sypr_enabled"], (r) => {
+                if (chrome.runtime.lastError) { resolve(true); return; }
+                resolve(r.sya_sypr_enabled !== false);
+            });
+        });
+    } catch {
+        cleanup();
+        return true;
+    }
+}
+
+function applyResults(data, devmode, sypr) {
     if (!data?.turns) return;
 
     const assistantEls = getAssistantElements();
@@ -654,7 +687,7 @@ function applyResults(data, devmode) {
         if (turn.sya_detected) applyBadge(el);
 
         if (turn.cleaned_message && turn.cleaned_message !== turn.assistant_message) {
-            applyCleanedText(el, turn.cleaned_message);
+            applyText(el, turn.cleaned_message, sypr);
         }
 
         // Remove any existing dev panel before re-rendering
@@ -679,6 +712,19 @@ function toggleDevPanels(devmode) {
 
         if (devmode) {
             el.appendChild(buildDevPanel(turn));
+        }
+    });
+}
+
+function toggleSyprText(sypr) {
+    if (!_lastTurns.length) return;
+
+    _lastAssistantEls.forEach((el, i) => {
+        const turn = _lastTurns[i];
+        if (!turn || !el) return;
+
+        if (turn.cleaned_message && turn.cleaned_message !== turn.assistant_message) {
+            applyText(el, turn.cleaned_message, sypr);
         }
     });
 }
@@ -710,6 +756,7 @@ async function runAnalysis() {
         }
 
         const devmode = await isDevMode();
+        const sypr = await isSyprEnabled();
         const conversation = buildConversation();
         if (!conversation.length) { release(); return; }
 
@@ -755,7 +802,7 @@ async function runAnalysis() {
                 }
                 _analyzedAssistantCount = currentAssistantCount;
 
-                applyResults({ turns: _cachedResults }, devmode);
+                applyResults({ turns: _cachedResults }, devmode, sypr);
             }
         );
     } catch {
@@ -772,6 +819,8 @@ try {
         if (!isExtensionValid()) return;
         if (message.type === "DEVMODE_CHANGED") {
             toggleDevPanels(message.devmode);
+        } else if (message.type === "SYPR_CHANGED") {
+            toggleSyprText(message.sypr);
         }
     });
 } catch {

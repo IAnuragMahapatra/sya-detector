@@ -63,7 +63,11 @@ def strip_sypr(text: str) -> str:
         new_result = _MASTER_PATTERN.sub("", result, count=1)
         if new_result == result:
             break
-        result = new_result.strip().lstrip("!.,;: \n")
+        result = new_result.strip().lstrip("!.,;: \n\t")
+
+    # Final post-processing: remove leading/trailing whitespace, tabs, and dashes (including em/en dashes)
+    result = re.sub(r"^[\s\-\—\–]+", "", result)
+    result = result.strip()
 
     # Capitalise the first character of what remains, preserving the rest.
     if result and result[0].islower():

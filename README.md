@@ -69,9 +69,11 @@ sya-detector/
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) for dependency management
 - [Ollama](https://ollama.com) running locally with the model pulled:
+
   ```bash
   ollama pull qwen2.5:7b
   ```
+
 - Google Chrome
 
 ---
@@ -125,6 +127,7 @@ Flip on **Developer Mode** in the popup and a collapsible dark panel will appear
 Runs the full pipeline. Returns per-turn SYA results and SYPR-cleaned text for every assistant message.
 
 **Request:**
+
 ```json
 {
   "conversation": [
@@ -135,6 +138,7 @@ Runs the full pipeline. Returns per-turn SYA results and SYPR-cleaned text for e
 ```
 
 **Response:**
+
 ```json
 {
   "turns": [
@@ -183,4 +187,4 @@ Built alongside **Antigravity** (Google DeepMind), with contributions down the l
 
 ## Contact
 
-Built by **Anurag Mahapatra** — reach out at anurag2005om@gmail.com
+Built by **Anurag Mahapatra** — reach out at <anurag2005om@gmail.com>

@@ -66,7 +66,7 @@
 
     ::-webkit-scrollbar-thumb {
       background: var(--color-border);
-      border-radius: 2px;
+      border-radius: 6px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
@@ -80,12 +80,43 @@
       color: var(--color-text-primary);
       padding: 24px;
       line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    .view {
+      display: none;
+      flex-direction: column;
+    }
+
+    .view.active {
+      display: flex;
     }
 
     .header {
       margin-bottom: 24px;
       border-bottom: 2px solid var(--color-border);
       padding-bottom: 16px;
+      position: relative;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-back {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px;
+      cursor: pointer;
+      transition: color var(--dur-fast) var(--ease-out);
+    }
+
+    .btn-back:hover {
+      color: var(--color-text-primary);
     }
 
     .title {
@@ -120,7 +151,7 @@
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       padding: 16px;
-      border-radius: 4px; /* Industrial hard corners */
+      border-radius: 8px;
     }
 
     .toggle-info {
@@ -142,12 +173,9 @@
       margin-top: 4px;
     }
 
-    .status-text.active {
-      color: var(--ref-accent-base);
-    }
-    .status-text.dev-active {
-      color: var(--ref-dev-base);
-    }
+    .status-text.active { color: var(--ref-accent-base); }
+    .status-text.dev-active { color: var(--ref-dev-base); }
+    .status-text.sypr-active { color: var(--ref-neutral-200); }
 
     /* Switch */
     .switch {
@@ -196,25 +224,42 @@
     input:checked + .slider.dev {
       background: var(--ref-dev-base);
     }
+    
+    input:checked + .slider.sypr {
+      background: oklch(60% 0.15 150); /* Greenish for clean text */
+    }
 
     input:checked + .slider::before {
       transform: translateX(22px);
     }
 
-    /* Settings Section */
+    .btn-nav {
+      width: 100%;
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      border: 1px solid var(--color-border);
+      padding: 14px;
+      font-size: 16px;
+      font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background-color var(--dur-fast) var(--ease-out);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-nav:hover {
+      background: var(--color-surface-hover);
+    }
+
     .settings-section {
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       padding: 20px 16px;
-      border-radius: 4px;
-    }
-
-    .settings-title {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 20px;
-      color: var(--color-text-primary);
-      letter-spacing: 0.05em;
-      margin-bottom: 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
     }
 
     .form-group {
@@ -240,7 +285,7 @@
       color: var(--color-text-primary);
       font-size: 14px;
       font-family: inherit;
-      border-radius: 2px;
+      border-radius: 6px;
       outline: none;
       transition: border-color var(--dur-fast) var(--ease-out);
     }
@@ -266,7 +311,7 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       cursor: pointer;
-      border-radius: 2px;
+      border-radius: 6px;
       transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
       margin-top: 8px;
     }
@@ -274,6 +319,13 @@
     .btn-save:hover {
       background: var(--color-text-primary);
       color: var(--color-bg);
+    }
+
+    .btn-save:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: var(--ref-neutral-800) !important;
+      color: var(--color-text-primary) !important;
     }
 
     .save-status {
@@ -299,73 +351,110 @@
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1 class="title">SYA Detector</h1>
-    <div class="subtitle">Sycophantic Agreement Interceptor</div>
+
+  <!-- HOME VIEW -->
+  <div id="view-home" class="view active">
+    <div class="header">
+      <h1 class="title">SYA Detector</h1>
+      <div class="subtitle">Sycophantic Agreement Interceptor</div>
+    </div>
+
+    <div class="control-group">
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">DETECTION CORE</div>
+          <div class="status-text" id="status-text">INITIALIZING...</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle" aria-label="Toggle Detection Core" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">TELEMETRY MODE</div>
+          <div class="status-text" id="devmode-status-text">HIDDEN</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="devmode-toggle" aria-label="Toggle Telemetry Mode" />
+          <span class="slider dev"></span>
+        </label>
+      </div>
+      
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">SYPR DELETION</div>
+          <div class="status-text" id="sypr-status-text">STRIP PREAMBLES</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="sypr-toggle" aria-label="Toggle SYPR Deletion" />
+          <span class="slider sypr"></span>
+        </label>
+      </div>
+    </div>
+
+    <button class="btn-nav" id="btn-go-config">
+      UPLINK CONFIG <span>→</span>
+    </button>
   </div>
 
-  <div class="control-group">
-    <div class="toggle-row">
-      <div class="toggle-info">
-        <div class="toggle-label">DETECTION CORE</div>
-        <div class="status-text" id="status-text">INITIALIZING...</div>
+  <!-- CONFIG VIEW -->
+  <div id="view-config" class="view">
+    <div class="header">
+      <div class="header-top">
+        <button class="btn-back" id="btn-go-home">←</button>
+        <h1 class="title">UPLINK CONFIG</h1>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="toggle" aria-label="Toggle Detection Core" />
-        <span class="slider"></span>
-      </label>
     </div>
 
-    <div class="toggle-row">
-      <div class="toggle-info">
-        <div class="toggle-label">TELEMETRY MODE</div>
-        <div class="status-text" id="devmode-status-text">HIDDEN</div>
+    <div class="settings-section">
+      <div class="form-group">
+        <label for="provider-select">Provider</label>
+        <select id="provider-select">
+          <option value="anthropic">Anthropic</option>
+          <option value="openai">OpenAI</option>
+          <option value="gemini">Gemini</option>
+          <option value="ollama">Ollama</option>
+          <option value="custom">Custom (Compatible)</option>
+        </select>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="devmode-toggle" aria-label="Toggle Telemetry Mode" />
-        <span class="slider dev"></span>
-      </label>
-    </div>
-  </div>
 
-  <div class="settings-section">
-    <div class="settings-title">Uplink Config</div>
+      <div class="form-group hidden" id="group-type">
+        <label for="provider-type">API Protocol</label>
+        <select id="provider-type">
+          <option value="openai">OpenAI Target</option>
+          <option value="anthropic">Anthropic Target</option>
+        </select>
+      </div>
 
-    <div class="form-group">
-      <label for="provider-select">Provider</label>
-      <select id="provider-select">
-        <option value="anthropic">Anthropic</option>
-        <option value="openai">OpenAI</option>
-        <option value="ollama">Ollama (Local)</option>
-        <option value="custom">Custom (Compatible)</option>
-      </select>
-    </div>
+      <div class="form-group hidden" id="group-url">
+        <label for="provider-url">Endpoint URL</label>
+        <input type="text" id="provider-url" placeholder="https://..." />
+      </div>
 
-    <div class="form-group hidden" id="group-type">
-      <label for="provider-type">API Protocol</label>
-      <select id="provider-type">
-        <option value="openai">OpenAI Target</option>
-        <option value="anthropic">Anthropic Target</option>
-      </select>
+      <div class="form-group" id="group-key">
+        <label for="provider-key">Access Key</label>
+        <input type="password" id="provider-key" placeholder="sk-..." />
+      </div>
+
+      <button class="btn-save" id="btn-save-provider">Connect &amp; Fetch</button>
+      <div class="save-status" id="provider-status"></div>
     </div>
 
-    <div class="form-group hidden" id="group-url">
-      <label for="provider-url">Endpoint URL</label>
-      <input type="text" id="provider-url" placeholder="https://..." />
-    </div>
+    <div class="settings-section" id="model-section" style="opacity: 0.5; pointer-events: none;">
+      <div class="form-group">
+        <label for="provider-model">Model Designation</label>
+        <select id="provider-model" disabled>
+          <option value="">Awaiting connection...</option>
+        </select>
+        <!-- Fallback text input if fetch fails -->
+        <input type="text" id="provider-model-fallback" class="hidden" placeholder="Type model ID (e.g. gpt-4o)" />
+      </div>
 
-    <div class="form-group">
-      <label for="provider-key">Access Key</label>
-      <input type="password" id="provider-key" placeholder="sk-..." />
+      <button class="btn-save" id="btn-save-model" disabled>Commit Settings</button>
+      <div class="save-status" id="model-status"></div>
     </div>
-
-    <div class="form-group">
-      <label for="provider-model">Model Designation</label>
-      <input type="text" id="provider-model" placeholder="claude-3-5-sonnet-20241022" />
-    </div>
-
-    <button class="btn-save" id="btn-save">Commit Settings</button>
-    <div class="save-status" id="save-status"></div>
   </div>
 
   <div class="footer">chatgpt.com // localhost:8000</div>

@@ -8,8 +8,7 @@
     "activeTab"
   ],
   "host_permissions": [
-    "https://chatgpt.com/*",
-    "http://localhost:8000/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "service_worker.js"
