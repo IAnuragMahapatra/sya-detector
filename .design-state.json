@@ -1,0 +1,62 @@
+{
+  "constrain": {
+    "completedAt": "2026-05-01T10:07:00Z",
+    "conceptualDirection": {
+      "audience": "AI researchers and power users monitoring LLM behavior",
+      "memorableThing": "Industrial precision and clear signal of sycophancy",
+      "aestheticRegister": "industrial"
+    },
+    "colorStrategy": "restrained",
+    "theme": {
+      "mode": "dark",
+      "sceneJustification": "A high-contrast control panel in a dark command center"
+    },
+    "fontPair": {
+      "display": "Bebas Neue",
+      "body": "Mulish"
+    },
+    "bansAcknowledged": [
+      "purple gradients on white",
+      "opacity for text hierarchy",
+      "transition: all",
+      "ease-in on entering",
+      "identical card grids",
+      "nested cards"
+    ]
+  },
+  "architect": {
+    "tokens": {
+      "primitive": {
+        "colors": {
+          "base-900": "oklch(15% 0.01 250)",
+          "base-800": "oklch(20% 0.01 250)",
+          "base-100": "oklch(95% 0.01 250)",
+          "accent": "oklch(65% 0.2 25)"
+        }
+      },
+      "semantic": {
+        "surface": "var(--base-900)",
+        "on-surface": "var(--base-100)",
+        "accent": "var(--accent)"
+      },
+      "motion": {
+        "ease-out": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "ease-in-out": "cubic-bezier(0.77, 0, 0.175, 1)",
+        "duration-fast": "150ms",
+        "duration-normal": "250ms"
+      }
+    }
+  },
+  "build": {
+    "stack": [
+      "HTML",
+      "Vanilla CSS",
+      "Vanilla JS"
+    ],
+    "filesGenerated": [
+      "popup.html",
+      "content_script.js",
+      "popup.js"
+    ]
+  }
+}

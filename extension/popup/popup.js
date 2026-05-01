@@ -10,15 +10,21 @@ const devmodeToggle = document.getElementById("devmode-toggle");
 const devmodeStatusText = document.getElementById("devmode-status-text");
 
 function updateStatusText(enabled) {
-    statusText.textContent = enabled ? "Active on chatgpt.com" : "Paused";
-    statusText.style.color = enabled ? "#e53e3e" : "#555";
+    statusText.textContent = enabled ? "ONLINE" : "OFFLINE";
+    if (enabled) {
+        statusText.classList.add("active");
+    } else {
+        statusText.classList.remove("active");
+    }
 }
 
 function updateDevmodeText(enabled) {
-    devmodeStatusText.textContent = enabled
-        ? "Panels visible on page"
-        : "Shows LLM reasoning per turn";
-    devmodeStatusText.style.color = enabled ? "#7c3aed" : "#555";
+    devmodeStatusText.textContent = enabled ? "VISIBLE" : "HIDDEN";
+    if (enabled) {
+        devmodeStatusText.classList.add("dev-active");
+    } else {
+        devmodeStatusText.classList.remove("dev-active");
+    }
 }
 
 // Load saved state on popup open
@@ -155,12 +161,12 @@ btnSave.addEventListener("click", () => {
     // Basic validation
     if (!config.model) {
         saveStatus.textContent = "Model name is required.";
-        saveStatus.style.color = "#fbbf24";
+        saveStatus.style.color = "var(--ref-dev-base)";
         return;
     }
     if (isCustom && !config.base_url) {
         saveStatus.textContent = "Base URL is required for custom.";
-        saveStatus.style.color = "#fbbf24";
+        saveStatus.style.color = "var(--ref-dev-base)";
         return;
     }
 
@@ -169,7 +175,7 @@ btnSave.addEventListener("click", () => {
         setTimeout(() => {
             btnSave.textContent = "Save Settings";
             saveStatus.textContent = "✓ Settings saved!";
-            saveStatus.style.color = "#3fb950";
+            saveStatus.style.color = "var(--ref-accent-base)";
 
             setTimeout(() => {
                 saveStatus.textContent = "";

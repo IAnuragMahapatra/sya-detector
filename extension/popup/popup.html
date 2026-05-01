@@ -4,68 +4,156 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SYA Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Mulish:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
+    :root {
+      /* Reference Tokens */
+      --ref-neutral-50: oklch(98% 0.005 250);
+      --ref-neutral-200: oklch(85% 0.01 250);
+      --ref-neutral-400: oklch(65% 0.015 250);
+      --ref-neutral-700: oklch(35% 0.02 250);
+      --ref-neutral-800: oklch(22% 0.02 250);
+      --ref-neutral-900: oklch(14% 0.02 250);
+      --ref-neutral-950: oklch(10% 0.02 250);
+      
+      --ref-accent-base: oklch(62% 0.19 25); /* Industrial orange/red */
+      --ref-accent-hover: oklch(from var(--ref-accent-base) calc(l - 0.08) c h);
+      --ref-dev-base: oklch(65% 0.15 290); /* Dev purpleish but shifted */
+      --ref-dev-hover: oklch(from var(--ref-dev-base) calc(l - 0.08) c h);
+
+      /* Semantic Tokens */
+      --color-bg: var(--ref-neutral-950);
+      --color-surface: var(--ref-neutral-900);
+      --color-surface-hover: var(--ref-neutral-800);
+      --color-border: var(--ref-neutral-800);
+      
+      --color-text-primary: var(--ref-neutral-50);
+      --color-text-secondary: var(--ref-neutral-200);
+      --color-text-muted: var(--ref-neutral-400);
+
+      /* Motion Tokens */
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+      --dur-fast: 150ms;
+      --dur-normal: 250ms;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-border) var(--color-bg);
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--color-bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--color-border);
+      border-radius: 2px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--ref-neutral-700);
     }
 
     body {
-      width: 260px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0f0f11;
-      color: #e8e8e8;
-      padding: 20px 18px;
+      width: 320px;
+      font-family: 'Mulish', sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text-primary);
+      padding: 24px;
+      line-height: 1.5;
     }
 
     .header {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 16px;
     }
 
     .title {
-      font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: -0.01em;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 32px;
+      color: var(--color-text-primary);
+      letter-spacing: 0.05em;
+      line-height: 1.1;
+      text-transform: uppercase;
     }
 
     .subtitle {
-      font-size: 11px;
-      color: #666;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-top: 4px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
     }
 
     .toggle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: #1a1a1e;
-      border: 1px solid #2a2a30;
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-bottom: 8px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      padding: 16px;
+      border-radius: 4px; /* Industrial hard corners */
+    }
+
+    .toggle-info {
+      display: flex;
+      flex-direction: column;
     }
 
     .toggle-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: #ccc;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--color-text-primary);
+      letter-spacing: 0.02em;
     }
 
     .status-text {
-      font-size: 11px;
-      color: #555;
-      margin-top: 2px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      margin-top: 4px;
     }
 
-    /* Toggle switch */
+    .status-text.active {
+      color: var(--ref-accent-base);
+    }
+    .status-text.dev-active {
+      color: var(--ref-dev-base);
+    }
+
+    /* Switch */
     .switch {
       position: relative;
-      width: 42px;
-      height: 24px;
+      width: 48px;
+      height: 26px;
       flex-shrink: 0;
     }
 
@@ -78,10 +166,10 @@
     .slider {
       position: absolute;
       inset: 0;
-      background: #333;
-      border-radius: 24px;
+      background: var(--ref-neutral-700);
       cursor: pointer;
-      transition: background 0.25s;
+      border-radius: 26px;
+      transition: background-color var(--dur-normal) var(--ease-out);
     }
 
     .slider::before {
@@ -89,81 +177,77 @@
       position: absolute;
       width: 18px;
       height: 18px;
-      left: 3px;
-      top: 3px;
-      background: #fff;
+      left: 4px;
+      top: 4px;
+      background: var(--color-bg);
       border-radius: 50%;
-      transition: transform 0.25s;
+      transition: transform var(--dur-normal) var(--ease-out);
+    }
+
+    input:focus-visible + .slider {
+      outline: 2px solid var(--color-text-primary);
+      outline-offset: 2px;
     }
 
     input:checked + .slider {
-      background: #e53e3e;
+      background: var(--ref-accent-base);
     }
 
     input:checked + .slider.dev {
-      background: #7c3aed;
+      background: var(--ref-dev-base);
     }
 
     input:checked + .slider::before {
-      transform: translateX(18px);
+      transform: translateX(22px);
     }
 
-    .footer {
-      margin-top: 16px;
-      font-size: 10px;
-      color: #3a3a45;
-      text-align: center;
-    }
-
-    .divider {
-      border: none;
-      border-top: 1px solid #2a2a30;
-      margin: 12px 0;
-    }
-
-    /* Settings Form */
+    /* Settings Section */
     .settings-section {
-      margin-top: 12px;
-      background: #151518;
-      border: 1px solid #2a2a30;
-      border-radius: 10px;
-      padding: 12px 14px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      padding: 20px 16px;
+      border-radius: 4px;
     }
 
     .settings-title {
-      font-size: 13px;
-      font-weight: 500;
-      color: #ccc;
-      margin-bottom: 12px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px;
+      color: var(--color-text-primary);
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
     }
 
     .form-group {
-      margin-bottom: 10px;
+      margin-bottom: 16px;
     }
 
     .form-group label {
       display: block;
-      font-size: 11px;
-      color: #888;
-      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--color-text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .form-group select,
     .form-group input {
       width: 100%;
-      background: #0f0f11;
-      border: 1px solid #333;
-      border-radius: 6px;
-      padding: 6px 8px;
-      color: #fff;
-      font-size: 12px;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      padding: 10px 12px;
+      color: var(--color-text-primary);
+      font-size: 14px;
       font-family: inherit;
+      border-radius: 2px;
       outline: none;
+      transition: border-color var(--dur-fast) var(--ease-out);
     }
 
     .form-group select:focus,
     .form-group input:focus {
-      border-color: #555;
+      border-color: var(--ref-accent-base);
     }
 
     .hidden {
@@ -172,66 +256,83 @@
 
     .btn-save {
       width: 100%;
-      background: #2ea043;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 8px;
-      font-size: 12px;
-      font-weight: 600;
+      background: var(--ref-neutral-800);
+      color: var(--color-text-primary);
+      border: 1px solid var(--color-border);
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 800;
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
       cursor: pointer;
-      margin-top: 4px;
-      transition: background 0.2s;
+      border-radius: 2px;
+      transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+      margin-top: 8px;
     }
 
     .btn-save:hover {
-      background: #3fb950;
+      background: var(--color-text-primary);
+      color: var(--color-bg);
     }
 
     .save-status {
-      font-size: 11px;
-      color: #3fb950;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: var(--ref-accent-base);
       text-align: center;
-      margin-top: 6px;
-      min-height: 13px;
+      margin-top: 12px;
+      min-height: 18px;
+      letter-spacing: 0.05em;
+    }
+
+    .footer {
+      margin-top: 24px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--color-text-muted);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="title">⚠ SYA Detector</div>
-    <div class="subtitle">Sycophantic Agreement Detection</div>
+    <h1 class="title">SYA Detector</h1>
+    <div class="subtitle">Sycophantic Agreement Interceptor</div>
   </div>
 
-  <div class="toggle-row">
-    <div>
-      <div class="toggle-label">Detection</div>
-      <div class="status-text" id="status-text">Loading…</div>
+  <div class="control-group">
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <div class="toggle-label">DETECTION CORE</div>
+        <div class="status-text" id="status-text">INITIALIZING...</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggle" aria-label="Toggle Detection Core" />
+        <span class="slider"></span>
+      </label>
     </div>
-    <label class="switch">
-      <input type="checkbox" id="toggle" />
-      <span class="slider"></span>
-    </label>
-  </div>
 
-  <hr class="divider" />
-
-  <div class="toggle-row">
-    <div>
-      <div class="toggle-label">🛠 Developer Mode</div>
-      <div class="status-text" id="devmode-status-text">Shows LLM reasoning per turn</div>
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <div class="toggle-label">TELEMETRY MODE</div>
+        <div class="status-text" id="devmode-status-text">HIDDEN</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="devmode-toggle" aria-label="Toggle Telemetry Mode" />
+        <span class="slider dev"></span>
+      </label>
     </div>
-    <label class="switch">
-      <input type="checkbox" id="devmode-toggle" />
-      <span class="slider dev"></span>
-    </label>
   </div>
 
   <div class="settings-section">
-    <div class="settings-title">Provider Config</div>
+    <div class="settings-title">Uplink Config</div>
 
     <div class="form-group">
-      <label>Provider</label>
+      <label for="provider-select">Provider</label>
       <select id="provider-select">
         <option value="anthropic">Anthropic</option>
         <option value="openai">OpenAI</option>
@@ -241,33 +342,33 @@
     </div>
 
     <div class="form-group hidden" id="group-type">
-      <label>API Type</label>
+      <label for="provider-type">API Protocol</label>
       <select id="provider-type">
-        <option value="openai">OpenAI Compatible</option>
-        <option value="anthropic">Anthropic Compatible</option>
+        <option value="openai">OpenAI Target</option>
+        <option value="anthropic">Anthropic Target</option>
       </select>
     </div>
 
     <div class="form-group hidden" id="group-url">
-      <label>Base URL</label>
+      <label for="provider-url">Endpoint URL</label>
       <input type="text" id="provider-url" placeholder="https://..." />
     </div>
 
     <div class="form-group">
-      <label>API Key</label>
+      <label for="provider-key">Access Key</label>
       <input type="password" id="provider-key" placeholder="sk-..." />
     </div>
 
     <div class="form-group">
-      <label>Model Name</label>
+      <label for="provider-model">Model Designation</label>
       <input type="text" id="provider-model" placeholder="claude-3-5-sonnet-20241022" />
     </div>
 
-    <button class="btn-save" id="btn-save">Save Settings</button>
+    <button class="btn-save" id="btn-save">Commit Settings</button>
     <div class="save-status" id="save-status"></div>
   </div>
 
-  <div class="footer">chatgpt.com · localhost:8000</div>
+  <div class="footer">chatgpt.com // localhost:8000</div>
 
   <script src="popup.js"></script>
 </body>
