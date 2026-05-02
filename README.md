@@ -12,7 +12,7 @@ This tool applies that principle to ChatGPT interactions in real time. By separa
 
 The primary focus of this tool is identifying **SyA (Sycophantic Agreement)**.
 
-**SyA (Opinion Sycophancy)** occurs when a model echoes a user's claim or reverses its previous position simply because the user pushed back, without any new factual evidence being introduced. The tool tracks the model's stance across the conversation and flags these unjustified changes. If new information is provided by the user, the change is treated as legitimate agreement. The objective is to catch when a model abandons logic to avoid conflict.
+**SyA (Sycophancy Agreement)** occurs when a model echoes a user's claim or reverses its previous position simply because the user pushed back, without any new factual evidence being introduced. The tool tracks the model's stance across the conversation and flags these unjustified changes. If new information is provided by the user, the change is treated as legitimate agreement. The objective is to catch when a model abandons logic to avoid conflict.
 
 **SyPr (Sycophantic Praise)** is a secondary, operational feature targeting flattery. These are the reflexive, praising phrases like "Great question!" or "You are absolutely right!" that models use before providing a response. Because research shows this praise operates independently of factual agreement, the tool removes it using rule-based parsing. This keeps the conversation focused without requiring additional model inference.
 
@@ -36,13 +36,13 @@ The detection logic is split into two specialized tasks to keep processing withi
 The backend is built to work with any provider supporting OpenAI or Anthropic compatible endpoints. This includes:
 
 - **Local Models**: Ollama, vLLM, or any local inference server.
-- **Cloud Providers**: OpenRouter, Gemini, DeepSeek, Anthropic, or OpenAI.
+- **Cloud Providers**: OpenAI, Anthropic, Google AI, Mistral AI, Cohere, xAI, DeepSeek, Hugging Face, Together AI, Fireworks AI, Groq, Perplexity AI, OpenRouter, or any other cloud inference provider.
 
 The system uses connection-pooled client caches to reuse TCP sockets across calls, significantly reducing latency for parallel LLM requests.
 
 ### 3. Telemetry Mode
 
-Formerly Developer Mode, **Telemetry Mode** provides a real-time inspection panel under every assistant message. It displays the full internal trace of the pipeline:
+Formerly called "Developer Mode", **Telemetry Mode** provides a real-time inspection panel under every assistant message. It displays the full internal trace of the pipeline:
 
 - Extracted stands for the current turn.
 - Detected shifts from the previous turn.
@@ -57,15 +57,15 @@ Formerly Developer Mode, **Telemetry Mode** provides a real-time inspection pane
 ```text
 drift/
 ├── backend/
-│   ├── main.py          # FastAPI routes and configuration
-│   ├── pipeline.py      # Two-model SyA detection loop
-│   ├── prompts.py       # Prompt templates for Extractor and Judge
-│   ├── cleaner.py       # SyPr (Sycophantic Praise) stripping
-│   └── models.py        # Connection-pooled LLM client layer
+│   ├── main.py            # FastAPI routes and configuration
+│   ├── pipeline.py        # Two-model SyA detection loop
+│   ├── prompts.py         # Prompt templates for Extractor and Judge
+│   ├── cleaner.py         # SyPr (Sycophantic Praise) stripping
+│   └── models.py          # Connection-pooled LLM client layer
 ├── extension/
-│   ├── manifest.json    # Chrome MV3 manifest
-│   ├── content_script.js# DOM observer and UI injection
-│   ├── service_worker.js# Backend communication relay
+│   ├── manifest.json      # Chrome MV3 manifest
+│   ├── content_script.js  # DOM observer and UI injection
+│   ├── service_worker.js  # Backend communication relay
 │   └── popup/
 │       ├── popup.html
 │       └── popup.js
@@ -74,12 +74,12 @@ drift/
 
 ---
 
-## Prerequisites
+## Prerequisites and
 
 - Python 3.11 or higher
-- [uv](https://github.com/astral-sh/uv) for managing dependencies
 - Any LLM provider supporting OpenAI or Anthropic compatible APIs.
-- Google Chrome
+- A Chromium based browser (Recommended: Google Chrome)
+- A Python Package Manager (Recommended: [uv](https://github.com/astral-sh/uv))
 
 ---
 
@@ -98,7 +98,7 @@ uv run uvicorn backend.main:app --reload --port 8000
 3. Click **Load unpacked** and select the `extension/` folder
 4. Pin the Drift extension to your toolbar
 
-Configure your provider (Anthropic, OpenAI, or a custom URL for local models like Ollama) in the extension popup. Now you can use ChatGPT as usual; the extension handles the detection in the background.
+Configure your provider (Anthropic, OpenAI, or a custom provider) in the extension popup. Now you can use ChatGPT as usual; the extension handles the detection in the background.
 
 ---
 
